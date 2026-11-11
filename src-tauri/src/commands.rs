@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use tauri::{AppHandle, Manager, State};
 use vp_core::mpv::MpvConfig;
-use vp_core::{scan_folder_files_pub, Folder, Playlist, ScanReport, Tag, Video, VideoFilter};
+use vp_core::{scan_folder_files_pub, Folder, Playlist, Rule, RuleInput, ScanReport, Tag, Video, VideoFilter};
 
 use crate::player::{json_f64, resolve_mpv, PlayerState};
 use crate::AppState;
@@ -62,11 +62,54 @@ pub async fn rescan_all(state: State<'_, AppState>) -> Res<(ScanReport, Vec<Stri
                 total.added += r.added;
                 total.removed += r.removed;
                 total.total += r.total;
+                total.rule_matches += r.rule_matches;
             }
             Err(msg) => errors.push(msg),
         }
     }
     Ok((total, errors))
+}
+
+#[tauri::command]
+pub fn set_default_folder(state: State<'_, AppState>, id: Option<i64>) -> Res<()> {
+    lib!(state).set_default_folder(id).map_err(e)
+}
+
+#[tauri::command]
+pub fn database_path(state: State<'_, AppState>) -> String {
+    state.db_path.to_string_lossy().into_owned()
+}
+
+// ------------------------------------------------------------------ rules
+
+#[tauri::command]
+pub fn list_rules(state: State<'_, AppState>) -> Res<Vec<Rule>> {
+    lib!(state).list_rules().map_err(e)
+}
+
+#[tauri::command]
+pub fn create_rule(state: State<'_, AppState>, input: RuleInput) -> Res<Rule> {
+    lib!(state).create_rule(&input).map_err(e)
+}
+
+#[tauri::command]
+pub fn update_rule(state: State<'_, AppState>, id: i64, input: RuleInput) -> Res<()> {
+    lib!(state).update_rule(id, &input).map_err(e)
+}
+
+#[tauri::command]
+pub fn delete_rule(state: State<'_, AppState>, id: i64) -> Res<()> {
+    lib!(state).delete_rule(id).map_err(e)
+}
+
+#[tauri::command]
+pub async fn apply_rules_to_existing(state: State<'_, AppState>) -> Res<usize> {
+    lib!(state).apply_rules_to_existing().map_err(e)
+}
+
+#[tauri::command]
+pub fn count_pattern_matches(state: State<'_, AppState>, pattern: String, case_insensitive: bool) -> Res<usize> {
+    lib!(state).count_pattern_matches(&pattern, case_insensitive).map_err(e)
 }
 
 // ----------------------------------------------------------------- videos

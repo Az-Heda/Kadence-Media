@@ -74,7 +74,7 @@ impl MpvClient {
             "--sub-auto=fuzzy",
             "--audio-display=no",
             "--hwdec=auto-safe",
-            "--title=Vibing Player",
+            "--title=Kadence Media",
         ]);
         cmd.arg(format!("--volume={}", cfg.volume));
         cmd.arg(format!("--volume-max={}", cfg.volume_max));

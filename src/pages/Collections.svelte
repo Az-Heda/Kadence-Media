@@ -1,6 +1,11 @@
 <script lang="ts">
   import { api, type Video } from '../lib/api';
   import { app, guarded, playQueue, refreshAll } from '../lib/store.svelte';
+  import X from '@lucide/svelte/icons/x';
+  import Play from '@lucide/svelte/icons/play';
+  import ChevronUp from '@lucide/svelte/icons/chevron-up';
+  import ChevronDown from '@lucide/svelte/icons/chevron-down';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
   let tagName = $state('');
   let tagColor = $state('#d4a017');
@@ -90,8 +95,8 @@
         <input type="color" value={t.color} onchange={(e) => editTag(t.id, t.name, e.currentTarget.value)} />
         <input type="text" class="grow" value={t.name}
           onchange={(e) => editTag(t.id, e.currentTarget.value, t.color)} />
-        <button class="ghost" title="Show in library" onclick={() => filterByTag(t.id)}>{t.video_count} ▸</button>
-        <button class="danger ghost" onclick={() => delTag(t.id)} title="Delete">✕</button>
+        <button class="ghost" title="Show in library" onclick={() => filterByTag(t.id)}>{t.video_count} <ChevronRight size={14} /></button>
+        <button class="danger ghost" onclick={() => delTag(t.id)} title="Delete"><X size={15} /></button>
       </div>
     {:else}<div class="muted">No tags yet.</div>{/each}
   </section>
@@ -106,23 +111,23 @@
       <div class="card row item" class:sel={selectedPl === p.id}>
         <input type="text" class="grow" value={p.name} onchange={(e) => renamePl(p.id, e.currentTarget.value)} />
         <button class="ghost" title="Show videos" onclick={() => (selectedPl = selectedPl === p.id ? null : p.id)}>
-          {p.video_count} {selectedPl === p.id ? '▾' : '▸'}
+          {p.video_count} {#if selectedPl === p.id}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
         </button>
-        <button class="danger ghost" onclick={() => delPl(p.id)} title="Delete">✕</button>
+        <button class="danger ghost" onclick={() => delPl(p.id)} title="Delete"><X size={15} /></button>
       </div>
       {#if selectedPl === p.id}
         <div class="plitems">
           <div class="row" style="margin-bottom:8px">
             <button class="primary" disabled={!plVideos.length}
-              onclick={() => playQueue(plVideos.map((v) => v.id), 0)}>▶ Play playlist</button>
+              onclick={() => playQueue(plVideos.map((v) => v.id), 0)}><Play size={15} fill="currentColor" /> Play playlist</button>
           </div>
           {#each plVideos as v, i (v.id)}
             <div class="row plrow">
               <span class="muted num">{i + 1}</span>
               <button class="ghost grow name" onclick={() => playQueue(plVideos.map((x) => x.id), i)}>{v.title}</button>
-              <button class="ghost" disabled={i === 0} onclick={() => move(i, -1)}>▲</button>
-              <button class="ghost" disabled={i === plVideos.length - 1} onclick={() => move(i, 1)}>▼</button>
-              <button class="ghost danger" onclick={() => removeFrom(v.id)}>✕</button>
+              <button class="ghost" disabled={i === 0} onclick={() => move(i, -1)}><ChevronUp size={15} /></button>
+              <button class="ghost" disabled={i === plVideos.length - 1} onclick={() => move(i, 1)}><ChevronDown size={15} /></button>
+              <button class="ghost danger" onclick={() => removeFrom(v.id)}><X size={15} /></button>
             </div>
           {:else}<div class="muted">Empty. Add videos from the library with “Organize”.</div>{/each}
         </div>

@@ -1,11 +1,11 @@
 [package]
-name = "vibing-player"
+name = "kadence-media"
 version = "0.1.0"
 description = "Cross-platform video library and player (Tauri + Svelte + mpv)"
 edition = "2021"
 
 [lib]
-name = "vibing_player_lib"
+name = "kadence_media_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

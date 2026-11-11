@@ -51,5 +51,6 @@ pub fn scan_dir(root: &Path) -> Vec<ScannedFile> {
             modified,
         });
     }
+    out.sort_by(|a, b| a.path.cmp(&b.path));
     out
 }

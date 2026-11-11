@@ -1,5 +1,5 @@
 {
-  "name": "vibing-player",
+  "name": "kadence-media",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,6 +11,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@lucide/svelte": "^1.72.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0"
   },

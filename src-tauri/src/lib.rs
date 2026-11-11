@@ -2,6 +2,7 @@ mod commands;
 mod host;
 mod player;
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Position, RunEvent, Size, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent};
@@ -12,6 +13,37 @@ pub struct AppState {
     pub player: player::Player,
     /// Native window id mpv draws into (None => mpv opens its own window).
     pub wid: Mutex<Option<i64>>,
+    /// Where the SQLite database actually lives (shown in Settings).
+    pub db_path: PathBuf,
+}
+
+const DB_FILE: &str = "KadenceMedia.sqlite3";
+
+/// Folder of the executable (for AppImage: the folder of the .AppImage file itself,
+/// since the real binary runs from a read-only mount).
+fn executable_dir() -> Option<PathBuf> {
+    if let Some(img) = std::env::var_os("APPIMAGE") {
+        if let Some(dir) = PathBuf::from(img).parent() {
+            return Some(dir.to_path_buf());
+        }
+    }
+    std::env::current_exe().ok()?.parent().map(|p| p.to_path_buf())
+}
+
+/// Open the library next to the executable; if that folder isn't writable (e.g. a
+/// system-wide install in /usr/bin or Program Files) fall back to the app-data dir.
+fn open_library(app: &tauri::App) -> Result<(Library, PathBuf), Box<dyn std::error::Error>> {
+    if let Some(dir) = executable_dir() {
+        let path = dir.join(DB_FILE);
+        if let Ok(lib) = Library::open(&path) {
+            return Ok((lib, path));
+        }
+        eprintln!("cannot write to {}, falling back to the app data directory", dir.display());
+    }
+    let data_dir = app.path().app_data_dir()?;
+    std::fs::create_dir_all(&data_dir)?;
+    let path = data_dir.join(DB_FILE);
+    Ok((Library::open(&path)?, path))
 }
 
 /// Keep the transparent UI overlay glued to the client area of the main window.
@@ -39,13 +71,12 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let data_dir = app.path().app_data_dir()?;
-            std::fs::create_dir_all(&data_dir)?;
-            let lib = Library::open(&data_dir.join("library.db"))?;
+            let (lib, db_path) = open_library(app)?;
             app.manage(AppState {
                 lib: Mutex::new(lib),
                 player: player::Player::default(),
                 wid: Mutex::new(None),
+                db_path,
             });
 
             let main = app.get_webview_window("main").ok_or("main window missing")?;
@@ -54,7 +85,7 @@ pub fn run() {
             // Transparent overlay window hosting the Svelte UI above the video.
             let size = main.inner_size()?;
             let overlay = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("index.html?surface=overlay".into()))
-                .title("Vibing Player UI")
+                .title("Kadence Media UI")
                 .decorations(false)
                 .transparent(true)
                 .shadow(false)
@@ -92,6 +123,14 @@ pub fn run() {
             commands::add_folder,
             commands::remove_folder,
             commands::rescan_all,
+            commands::set_default_folder,
+            commands::database_path,
+            commands::list_rules,
+            commands::create_rule,
+            commands::update_rule,
+            commands::delete_rule,
+            commands::apply_rules_to_existing,
+            commands::count_pattern_matches,
             commands::list_videos,
             commands::set_watched,
             commands::list_tags,

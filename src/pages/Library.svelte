@@ -1,6 +1,10 @@
 <script lang="ts">
   import { api, type Video } from '../lib/api';
-  import { app, guarded, loadVideos, playQueue, refreshAll, toast } from '../lib/store.svelte';
+  import { app, defaultFolderId, guarded, loadVideos, playQueue, refreshAll, toast } from '../lib/store.svelte';
+  import VideoTable from '../components/VideoTable.svelte';
+  import Play from '@lucide/svelte/icons/play';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import X from '@lucide/svelte/icons/x';
   import VideoCard from '../components/VideoCard.svelte';
   import ManageVideo from '../components/ManageVideo.svelte';
 
@@ -27,12 +31,12 @@
     app.filter.watched = null;
     app.filter.tag_ids = [];
     app.filter.playlist_id = null;
-    app.filter.folder_id = null;
+    app.filter.folder_id = defaultFolderId(); // the default folder (if any) stays applied
   }
 
   const filtered = $derived(
     app.filter.search !== '' || app.filter.watched !== null || app.filter.tag_ids.length > 0 ||
-      app.filter.playlist_id !== null || app.filter.folder_id !== null,
+      app.filter.playlist_id !== null || app.filter.folder_id !== defaultFolderId(),
   );
 
   async function rescan() {
@@ -56,8 +60,8 @@
     <h1>Library</h1>
     <div class="muted">{app.videos.length} video{app.videos.length === 1 ? '' : 's'}{filtered ? ' (filtered)' : ''}</div>
   </div>
-  <button onclick={rescan} disabled={scanning}>{scanning ? 'Scanning…' : '⟳ Rescan'}</button>
-  <button class="primary" disabled={app.videos.length === 0} onclick={() => playQueue(app.videos.map((x) => x.id), 0)}>▶ Play all</button>
+  <button onclick={rescan} disabled={scanning}><RefreshCw size={15} /> {scanning ? 'Scanning…' : 'Rescan'}</button>
+  <button class="primary" disabled={app.videos.length === 0} onclick={() => playQueue(app.videos.map((x) => x.id), 0)}><Play size={15} fill="currentColor" /> Play all</button>
 </div>
 
 <div class="toolbar">
@@ -75,7 +79,7 @@
     <option value={null}>All folders</option>
     {#each app.folders as f (f.id)}<option value={f.id}>{f.path}</option>{/each}
   </select>
-  {#if filtered}<button class="ghost" onclick={clearFilters}>Clear</button>{/if}
+  {#if filtered}<button class="ghost" onclick={clearFilters}><X size={15} /> Clear</button>{/if}
 </div>
 
 {#if app.tags.length}
@@ -98,6 +102,8 @@
       No videos found in your folders. Try <b>Rescan</b>.
     {/if}
   </div>
+{:else if app.settings.library_view === 'table'}
+  <VideoTable videos={app.videos} onplay={play} onmanage={(v) => (managingId = v.id)} />
 {:else}
   <div class="grid">
     {#each app.videos as v (v.id)}

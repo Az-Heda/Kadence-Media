@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api, type Video } from '../lib/api';
+  import X from '@lucide/svelte/icons/x';
   import { app, guarded, refreshAll } from '../lib/store.svelte';
 
   let { video, onclose }: { video: Video; onclose: () => void } = $props();
@@ -36,7 +37,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="backdrop" onclick={onclose}>
   <div class="dialog card" onclick={(e) => e.stopPropagation()}>
-    <div class="row"><h1 class="grow">{video.title}</h1><button class="ghost" onclick={onclose}>✕</button></div>
+    <div class="row"><h1 class="grow">{video.title}</h1><button class="ghost" onclick={onclose}><X size={16} /></button></div>
 
     <h2>Tags</h2>
     <div class="chips">

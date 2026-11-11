@@ -1,13 +1,13 @@
 import { api, errMsg, type Folder, type Playlist, type PlayerState, type Settings, type Tag, type Video } from './api';
 
-export type Page = 'library' | 'folders' | 'collections' | 'settings';
+export type Page = 'library' | 'folders' | 'collections' | 'rules' | 'settings';
 
 export const DEFAULT_PRIMARY = '#d4a017';
 
 export const app = $state({
   page: 'library' as Page,
   playerView: false,
-  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '' } as Settings,
+  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '' } as Settings,
   folders: [] as Folder[],
   tags: [] as Tag[],
   playlists: [] as Playlist[],
@@ -41,6 +41,20 @@ export async function guarded<T>(fn: () => Promise<T>): Promise<T | undefined> {
     toast(errMsg(e), true);
     return undefined;
   }
+}
+
+/** The folder marked as default in Folders (null = all folders). */
+export const defaultFolderId = (): number | null => Number(app.settings.default_folder_id) || null;
+
+export async function setDefaultFolder(id: number | null) {
+  await guarded(async () => {
+    const previous = defaultFolderId();
+    await api.setDefaultFolder(id);
+    app.settings.default_folder_id = id == null ? '' : String(id);
+    // Move the library filter along if it was showing the old default.
+    if (app.filter.folder_id === previous) app.filter.folder_id = id;
+    app.folders = await api.listFolders();
+  });
 }
 
 export const volumeMax = () => Math.max(100, Number(app.settings.volume_max) || 300);

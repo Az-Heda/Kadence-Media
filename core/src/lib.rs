@@ -3,6 +3,7 @@
 
 mod db;
 mod error;
+mod rules;
 pub mod models;
 pub mod mpv;
 mod scan;

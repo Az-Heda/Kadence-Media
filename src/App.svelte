@@ -2,21 +2,29 @@
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { api, type PlayerState } from './lib/api';
-  import { app, loadSettings, refreshAll, playNext, queueIndex, guarded, toast, type Page } from './lib/store.svelte';
+  import { app, defaultFolderId, loadSettings, refreshAll, playNext, queueIndex, guarded, toast, type Page } from './lib/store.svelte';
   import Library from './pages/Library.svelte';
   import Folders from './pages/Folders.svelte';
   import Collections from './pages/Collections.svelte';
-  import Settings from './pages/Settings.svelte';
+  import SettingsPage from './pages/Settings.svelte';
   import Player from './pages/Player.svelte';
+  import Rules from './pages/Rules.svelte';
   import MiniPlayer from './components/MiniPlayer.svelte';
+  import LayoutGrid from '@lucide/svelte/icons/layout-grid';
+  import FolderOpen from '@lucide/svelte/icons/folder-open';
+  import Tags from '@lucide/svelte/icons/tags';
+  import WandSparkles from '@lucide/svelte/icons/wand-sparkles';
+  import Settings2 from '@lucide/svelte/icons/settings';
+  import Clapperboard from '@lucide/svelte/icons/clapperboard';
 
   const surface = new URLSearchParams(location.search).get('surface') ?? 'overlay';
 
-  const pages: { id: Page; label: string; icon: string }[] = [
-    { id: 'library', label: 'Library', icon: '▦' },
-    { id: 'folders', label: 'Folders', icon: '🗀' },
-    { id: 'collections', label: 'Tags & Playlists', icon: '☰' },
-    { id: 'settings', label: 'Settings', icon: '⚙' },
+  const pages: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
+    { id: 'library', label: 'Library', icon: LayoutGrid },
+    { id: 'folders', label: 'Folders', icon: FolderOpen },
+    { id: 'collections', label: 'Tags & Playlists', icon: Tags },
+    { id: 'rules', label: 'Automatic Rules', icon: WandSparkles },
+    { id: 'settings', label: 'Settings', icon: Settings2 },
   ];
 
   $effect(() => {
@@ -28,6 +36,7 @@
     if (surface !== 'overlay') return;
     guarded(async () => {
       await loadSettings();
+      app.filter.folder_id = defaultFolderId(); // default folder is applied before the first load
       await refreshAll();
       app.player = await api.playerState();
       // Pick up files added/removed while the app was closed (errors only, to avoid noise).
@@ -60,10 +69,10 @@
   {:else}
     <div class="shell">
       <nav>
-        <div class="brand"><span class="logo">▶</span> Vibing</div>
+        <div class="brand"><span class="logo"><Clapperboard size={20} /></span> Kadence Media</div>
         {#each pages as p}
           <button class="nav ghost" class:active={app.page === p.id} onclick={() => (app.page = p.id)}>
-            <span class="icon">{p.icon}</span>{p.label}
+            <p.icon size={18} />{p.label}
           </button>
         {/each}
       </nav>
@@ -72,7 +81,8 @@
           {#if app.page === 'library'}<Library />
           {:else if app.page === 'folders'}<Folders />
           {:else if app.page === 'collections'}<Collections />
-          {:else}<Settings />{/if}
+          {:else if app.page === 'rules'}<Rules />
+          {:else}<SettingsPage />{/if}
         </main>
         {#if app.player.video_id != null}<MiniPlayer />{/if}
       </div>
@@ -87,10 +97,10 @@
   .shell { display: flex; height: 100vh; background: var(--bg); }
   nav { width: 210px; background: var(--surface); border-right: 1px solid var(--border); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; }
   .brand { font-size: 17px; font-weight: 700; padding: 6px 10px 16px; letter-spacing: .02em; }
-  .logo { color: var(--primary); margin-right: 4px; }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .logo { color: var(--primary); display: inline-flex; }
   .nav { text-align: left; display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
   .nav.active { background: var(--primary-soft); color: var(--primary); border-color: transparent; }
-  .icon { width: 18px; text-align: center; }
   .content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   main { flex: 1; overflow-y: auto; padding: 22px 26px; }
   .toast {

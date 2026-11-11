@@ -1,6 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, fmtTime } from '../lib/api';
+  import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+  import Play from '@lucide/svelte/icons/play';
+  import Pause from '@lucide/svelte/icons/pause';
+  import SkipBack from '@lucide/svelte/icons/skip-back';
+  import SkipForward from '@lucide/svelte/icons/skip-forward';
+  import Volume1 from '@lucide/svelte/icons/volume-1';
+  import Volume2 from '@lucide/svelte/icons/volume-2';
+  import VolumeX from '@lucide/svelte/icons/volume-x';
+  import Maximize from '@lucide/svelte/icons/maximize';
+  import Minimize from '@lucide/svelte/icons/minimize';
   import { app, currentVideo, guarded, playNext, queueIndex, stopPlayback, togglePause, volumeMax } from '../lib/store.svelte';
 
   const video = $derived(currentVideo());
@@ -74,7 +84,7 @@
 
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="top bar" onclick={(e) => e.stopPropagation()} ondblclick={(e) => e.stopPropagation()}>
-    <button onclick={back}>← Library</button>
+    <button onclick={back}><ArrowLeft size={16} /> Library</button>
     <div class="title grow">{video?.title ?? ''}</div>
   </div>
 
@@ -84,18 +94,18 @@
       oninput={(e) => { seeking = true; seekValue = Number(e.currentTarget.value); }}
       onchange={commitSeek} />
     <div class="row controls">
-      <button class="ghost" disabled={!hasPrev} onclick={() => playNext(-1)} title="Previous (P)">⏮</button>
-      <button class="primary round" onclick={togglePause} title="Play/Pause (Space)">{app.player.paused ? '▶' : '❚❚'}</button>
-      <button class="ghost" disabled={!hasNext} onclick={() => playNext(1)} title="Next (N)">⏭</button>
+      <button class="ghost" disabled={!hasPrev} onclick={() => playNext(-1)} title="Previous (P)"><SkipBack size={18} /></button>
+      <button class="primary round" onclick={togglePause} title="Play/Pause (Space)">{#if app.player.paused}<Play size={18} fill="currentColor" />{:else}<Pause size={18} fill="currentColor" />{/if}</button>
+      <button class="ghost" disabled={!hasNext} onclick={() => playNext(1)} title="Next (N)"><SkipForward size={18} /></button>
       <span class="time">{fmtTime(shownPos)} / {fmtTime(app.player.duration)}</span>
       <span class="grow"></span>
       <button class="ghost" onclick={() => guarded(() => api.setMute(!app.player.muted))} title="Mute (M)">
-        {app.player.muted || app.player.volume === 0 ? '🔇' : app.player.volume > 100 ? '🔊' : '🔉'}
+        {#if app.player.muted || app.player.volume === 0}<VolumeX size={18} />{:else if app.player.volume > 100}<Volume2 size={18} />{:else}<Volume1 size={18} />{/if}
       </button>
       <input class="vol" type="range" min="0" max={volumeMax()} step="1" value={app.player.volume}
         oninput={(e) => setVolume(Number(e.currentTarget.value))} />
       <span class="volnum" class:boost={app.player.volume > 100}>{Math.round(app.player.volume)}%</span>
-      <button class="ghost" onclick={() => setFullscreen(!fullscreen)} title="Fullscreen (F)">{fullscreen ? '🗗' : '⛶'}</button>
+      <button class="ghost" onclick={() => setFullscreen(!fullscreen)} title="Fullscreen (F)">{#if fullscreen}<Minimize size={18} />{:else}<Maximize size={18} />{/if}</button>
     </div>
   </div>
 </div>

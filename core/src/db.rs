@@ -42,6 +42,23 @@ CREATE TABLE IF NOT EXISTS playlist_items (
     position    INTEGER NOT NULL,
     PRIMARY KEY (playlist_id, video_id)
 );
+CREATE TABLE IF NOT EXISTS rules (
+    id               INTEGER PRIMARY KEY,
+    name             TEXT NOT NULL,
+    pattern          TEXT NOT NULL,
+    case_insensitive INTEGER NOT NULL DEFAULT 1,
+    enabled          INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS rule_tags (
+    rule_id INTEGER NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
+    tag_id  INTEGER NOT NULL REFERENCES tags(id)  ON DELETE CASCADE,
+    PRIMARY KEY (rule_id, tag_id)
+);
+CREATE TABLE IF NOT EXISTS rule_playlists (
+    rule_id     INTEGER NOT NULL REFERENCES rules(id)     ON DELETE CASCADE,
+    playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    PRIMARY KEY (rule_id, playlist_id)
+);
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -55,10 +72,12 @@ pub const DEFAULT_SETTINGS: &[(&str, &str)] = &[
     ("primary_color", "#d4a017"),
     ("embed_video", "true"),
     ("mpv_path", ""),
+    ("library_view", "grid"),
+    ("default_folder_id", ""),
 ];
 
 pub struct Library {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl Library {
@@ -94,10 +113,13 @@ impl Library {
             params![canonical],
             |r| r.get(0),
         )?;
-        Ok(Folder { id, path: canonical, video_count: 0 })
+        Ok(Folder { id, path: canonical, video_count: 0, is_default: false })
     }
 
     pub fn remove_folder(&self, id: i64) -> Result<()> {
+        if self.default_folder_id()? == Some(id) {
+            self.set_default_folder(None)?;
+        }
         self.conn.execute("DELETE FROM folders WHERE id = ?1", params![id])?;
         Ok(())
     }
@@ -108,9 +130,31 @@ impl Library {
              FROM folders f ORDER BY f.path COLLATE NOCASE",
         )?;
         let rows = st.query_map([], |r| {
-            Ok(Folder { id: r.get(0)?, path: r.get(1)?, video_count: r.get(2)? })
+            Ok(Folder { id: r.get(0)?, path: r.get(1)?, video_count: r.get(2)?, is_default: false })
         })?;
-        Ok(rows.collect::<std::result::Result<_, _>>()?)
+        let mut folders: Vec<Folder> = rows.collect::<std::result::Result<_, _>>()?;
+        let default = self.default_folder_id()?;
+        for f in &mut folders {
+            f.is_default = Some(f.id) == default;
+        }
+        Ok(folders)
+    }
+
+    /// The folder the library shows by default (None = all folders).
+    pub fn default_folder_id(&self) -> Result<Option<i64>> {
+        let id = self.get_setting("default_folder_id")?.and_then(|v| v.parse::<i64>().ok());
+        match id {
+            // Treat a stale id as "none".
+            Some(i) if self.folder_path(i).is_ok() => Ok(Some(i)),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn set_default_folder(&self, id: Option<i64>) -> Result<()> {
+        if let Some(i) = id {
+            self.folder_path(i)?; // must exist
+        }
+        self.set_setting("default_folder_id", &id.map(|i| i.to_string()).unwrap_or_default())
     }
 
     pub fn folder_path(&self, id: i64) -> Result<String> {
@@ -143,6 +187,7 @@ impl Library {
         let tx = self.conn.transaction()?;
         let mut report = ScanReport { total: files.len(), ..Default::default() };
         let seen: HashSet<&str> = files.iter().map(|f| f.path.as_str()).collect();
+        let rules = crate::rules::load_enabled(&tx)?;
         {
             let mut exists = tx.prepare("SELECT 1 FROM videos WHERE path = ?1")?;
             let mut upsert = tx.prepare(
@@ -155,6 +200,12 @@ impl Library {
                 upsert.execute(params![f.path, folder_id, f.title, f.size, f.modified])?;
                 if !known {
                     report.added += 1;
+                    // Automatic rules apply to newly added videos only, so tags the
+                    // user removes by hand don't come back on every rescan.
+                    let video_id = tx.last_insert_rowid();
+                    if crate::rules::apply(&tx, &rules, video_id, &f.path)? {
+                        report.rule_matches += 1;
+                    }
                 }
             }
         }
@@ -204,8 +255,20 @@ impl Library {
             args.push(Value::Integer(w as i64));
         }
         if let Some(f) = filter.folder_id {
-            clauses.push("v.folder_id = ?".into());
-            args.push(Value::Integer(f));
+            // Match by path prefix (not folder_id) so videos owned by an overlapping
+            // parent folder still show up under a subfolder.
+            match self.folder_path(f) {
+                Ok(path) => {
+                    let mut prefix = path;
+                    if !prefix.ends_with(std::path::MAIN_SEPARATOR) {
+                        prefix.push(std::path::MAIN_SEPARATOR);
+                    }
+                    clauses.push("substr(v.path, 1, ?) = ?".into());
+                    args.push(Value::Integer(prefix.chars().count() as i64));
+                    args.push(Value::Text(prefix));
+                }
+                Err(_) => clauses.push("0".into()),
+            }
         }
         if !filter.tag_ids.is_empty() {
             let marks = vec!["?"; filter.tag_ids.len()].join(",");
@@ -651,5 +714,42 @@ mod tests {
         assert_eq!(lib.all_settings().unwrap()["volume_max"], "200");
         assert_eq!(lib.all_settings().unwrap()["primary_color"], "#d4a017");
         assert!(lib.set_setting("bogus", "1").is_err());
+    }
+}
+
+#[cfg(test)]
+mod folder_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn default_folder_lifecycle_and_subfolder_filter() {
+        let dir = tempfile::tempdir().unwrap();
+        let sub = dir.path().join("sub");
+        fs::create_dir_all(&sub).unwrap();
+        fs::write(dir.path().join("root.mp4"), b"x").unwrap();
+        fs::write(sub.join("inner.mp4"), b"x").unwrap();
+        let mut lib = Library::open_in_memory().unwrap();
+        let parent = lib.add_folder(dir.path().to_str().unwrap()).unwrap();
+        let child = lib.add_folder(sub.to_str().unwrap()).unwrap();
+        lib.scan_folder(parent.id).unwrap(); // parent owns both videos
+        lib.scan_folder(child.id).unwrap();
+
+        assert_eq!(lib.default_folder_id().unwrap(), None);
+        lib.set_default_folder(Some(child.id)).unwrap();
+        assert_eq!(lib.default_folder_id().unwrap(), Some(child.id));
+        let flags: Vec<_> = lib.list_folders().unwrap().into_iter().map(|f| (f.id, f.is_default)).collect();
+        assert!(flags.contains(&(child.id, true)) && flags.contains(&(parent.id, false)));
+
+        // The subfolder filter finds the video even though the parent folder owns it.
+        let v = lib.list_videos(&VideoFilter { folder_id: Some(child.id), ..Default::default() }).unwrap();
+        assert_eq!(v.iter().map(|v| v.title.as_str()).collect::<Vec<_>>(), vec!["inner"]);
+        let all = lib.list_videos(&VideoFilter { folder_id: Some(parent.id), ..Default::default() }).unwrap();
+        assert_eq!(all.len(), 2);
+
+        // Removing the default folder clears the default.
+        lib.remove_folder(child.id).unwrap();
+        assert_eq!(lib.default_folder_id().unwrap(), None);
+        assert!(lib.set_default_folder(Some(9999)).is_err());
     }
 }

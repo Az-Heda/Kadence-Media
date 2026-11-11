@@ -5,6 +5,7 @@ pub struct Folder {
     pub id: i64,
     pub path: String,
     pub video_count: i64,
+    pub is_default: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -60,4 +61,37 @@ pub struct ScanReport {
     pub added: usize,
     pub removed: usize,
     pub total: usize,
+    /// Newly added videos that matched at least one automatic rule.
+    pub rule_matches: usize,
+}
+
+/// Automatic rule: when a *new* video's full path matches `pattern`, all linked
+/// tags and playlists are applied to it.
+#[derive(Debug, Clone, Serialize)]
+pub struct Rule {
+    pub id: i64,
+    pub name: String,
+    pub pattern: String,
+    pub case_insensitive: bool,
+    pub enabled: bool,
+    pub tag_ids: Vec<i64>,
+    pub playlist_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RuleInput {
+    pub name: String,
+    pub pattern: String,
+    #[serde(default = "yes")]
+    pub case_insensitive: bool,
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub tag_ids: Vec<i64>,
+    #[serde(default)]
+    pub playlist_ids: Vec<i64>,
+}
+
+fn yes() -> bool {
+    true
 }

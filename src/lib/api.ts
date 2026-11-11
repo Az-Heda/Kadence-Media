@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-export interface Folder { id: number; path: string; video_count: number }
+export interface Folder { id: number; path: string; video_count: number; is_default: boolean }
 export interface VideoTag { id: number; name: string; color: string }
 export interface Tag extends VideoTag { video_count: number }
 export interface Playlist { id: number; name: string; video_count: number }
@@ -13,19 +13,35 @@ export interface VideoFilter {
   search?: string; tag_ids?: number[]; playlist_id?: number | null;
   watched?: boolean | null; folder_id?: number | null;
 }
-export interface ScanReport { added: number; removed: number; total: number }
+export interface ScanReport { added: number; removed: number; total: number; rule_matches: number }
+export interface Rule {
+  id: number; name: string; pattern: string; case_insensitive: boolean; enabled: boolean;
+  tag_ids: number[]; playlist_ids: number[];
+}
+export type RuleInput = Omit<Rule, 'id'>;
 export interface PlayerState {
   video_id: number | null; loaded: boolean; idle: boolean; paused: boolean;
   position: number; duration: number; volume: number; muted: boolean;
 }
 export type Settings = {
   volume_max: string; volume: string; primary_color: string; embed_video: string; mpv_path: string;
+  library_view: string; default_folder_id: string;
 };
 
 export const api = {
   listFolders: () => invoke<Folder[]>('list_folders'),
   addFolder: (path: string) => invoke<Folder>('add_folder', { path }),
   removeFolder: (id: number) => invoke<void>('remove_folder', { id }),
+  setDefaultFolder: (id: number | null) => invoke<void>('set_default_folder', { id }),
+  databasePath: () => invoke<string>('database_path'),
+
+  listRules: () => invoke<Rule[]>('list_rules'),
+  createRule: (input: RuleInput) => invoke<Rule>('create_rule', { input }),
+  updateRule: (id: number, input: RuleInput) => invoke<void>('update_rule', { id, input }),
+  deleteRule: (id: number) => invoke<void>('delete_rule', { id }),
+  applyRulesToExisting: () => invoke<number>('apply_rules_to_existing'),
+  countPatternMatches: (pattern: string, caseInsensitive: boolean) =>
+    invoke<number>('count_pattern_matches', { pattern, caseInsensitive }),
   rescanAll: () => invoke<[ScanReport, string[]]>('rescan_all'),
 
   listVideos: (filter: VideoFilter) => invoke<Video[]>('list_videos', { filter }),
