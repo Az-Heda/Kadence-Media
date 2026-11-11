@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, fmtTime } from '../lib/api';
+  import { app, currentVideo, guarded, playNext, playQueue, queueIndex, stopPlayback, togglePause, volumeMax } from '../lib/store.svelte';
+  import CircleX from '@lucide/svelte/icons/circle-x';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import Play from '@lucide/svelte/icons/play';
   import Pause from '@lucide/svelte/icons/pause';
+  import Square from '@lucide/svelte/icons/square';
   import SkipBack from '@lucide/svelte/icons/skip-back';
   import SkipForward from '@lucide/svelte/icons/skip-forward';
   import Volume1 from '@lucide/svelte/icons/volume-1';
@@ -11,7 +14,8 @@
   import VolumeX from '@lucide/svelte/icons/volume-x';
   import Maximize from '@lucide/svelte/icons/maximize';
   import Minimize from '@lucide/svelte/icons/minimize';
-  import { app, currentVideo, guarded, playNext, queueIndex, stopPlayback, togglePause, volumeMax } from '../lib/store.svelte';
+  import ListVideo from '@lucide/svelte/icons/list-video';
+  import X from '@lucide/svelte/icons/x';
 
   const video = $derived(currentVideo());
   const hasPrev = $derived(queueIndex() > 0);
@@ -24,6 +28,17 @@
   let seekValue = $state(0);
   const shownPos = $derived(seeking ? seekValue : app.player.position);
 
+  // Playlist side panel (only when the queue comes from a playlist).
+  let panelOpen = $state(false);
+  let listEl = $state<HTMLElement>();
+  const showPanel = $derived(panelOpen && app.queueTitle !== null);
+
+  $effect(() => {
+    // Keep the playing item in view when the panel opens or the video changes.
+    void [showPanel, app.player.video_id];
+    queueMicrotask(() => listEl?.querySelector('.current')?.scrollIntoView({ block: 'nearest' }));
+  });
+
   function poke() {
     visible = true;
     clearTimeout(hideTimer);
@@ -35,9 +50,25 @@
     fullscreen = on;
   }
 
-  function back() {
-    if (fullscreen) setFullscreen(false);
+  /** Hide the player but keep playing in the background. */
+  async function back() {
+    if (fullscreen) await setFullscreen(false);
     app.playerView = false;
+  }
+
+  /** Stop playback and return to the library. */
+  async function stop() {
+    if (fullscreen) await setFullscreen(false);
+    await stopPlayback();
+  }
+
+  /** Esc: close the panel first; then leave fullscreen and do the configured action. */
+  async function escape() {
+    if (panelOpen) { panelOpen = false; return; }
+    const action = app.settings.escape_action;
+    if (action === 'stop') await stop();
+    else if (action === 'back') await back();
+    else if (fullscreen) await setFullscreen(false);
   }
 
   async function setVolume(v: number) {
@@ -53,6 +84,13 @@
     if (e.target instanceof HTMLInputElement && e.target.type !== 'range') return;
     poke();
     const vol = app.player.volume;
+    // 0-9: jump to 0%, 10%, ... 90% of the video.
+    if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (app.player.duration > 0) {
+        guarded(() => api.seek((app.player.duration * Number(e.key)) / 10, false));
+      }
+      return;
+    }
     switch (e.key) {
       case ' ': e.preventDefault(); togglePause(); break;
       case 'ArrowLeft': guarded(() => api.seek(e.shiftKey ? -30 : -5, true)); break;
@@ -63,7 +101,7 @@
       case 'm': case 'M': guarded(() => api.setMute(!app.player.muted)); break;
       case 'n': case 'N': playNext(1); break;
       case 'p': case 'P': playNext(-1); break;
-      case 'Escape': back(); break;
+      case 'Escape': escape(); break;
     }
   }
 
@@ -77,16 +115,39 @@
 <svelte:window onkeydown={onKey} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="stage" class:idle={!visible} onmousemove={poke} onclick={togglePause} ondblclick={() => setFullscreen(!fullscreen)}>
+<div class="stage" class:idle={!visible && !showPanel} onmousemove={poke} onclick={togglePause} ondblclick={() => setFullscreen(!fullscreen)}>
   {#if app.player.idle || (!app.player.loaded && app.player.video_id == null)}
     <div class="msg muted">Nothing is playing</div>
   {/if}
 
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="top bar" onclick={(e) => e.stopPropagation()} ondblclick={(e) => e.stopPropagation()}>
-    <button onclick={back}><ArrowLeft size={16} /> Library</button>
+    <button class="danger" onclick={stop} title="Close the video (stops playback)"><CircleX size={16} /> Close</button>
+    <button onclick={back} title="Back to the library (keeps playing)"><ArrowLeft size={16} /> Library</button>
     <div class="title grow">{video?.title ?? ''}</div>
   </div>
+
+  {#if showPanel}
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="panel" role="presentation" onclick={(e) => e.stopPropagation()} ondblclick={(e) => e.stopPropagation()}>
+      <header>
+        <div class="grow">
+          <div class="ptitle">{app.queueTitle}</div>
+          <div class="muted small">{queueIndex() + 1} / {app.queueVideos.length}</div>
+        </div>
+        <button class="ghost" onclick={() => (panelOpen = false)} title="Close"><X size={16} /></button>
+      </header>
+      <div class="items" bind:this={listEl}>
+        {#each app.queueVideos as v, i (v.id)}
+          {@const current = v.id === app.player.video_id}
+          <button class="item" class:current onclick={() => playQueue(app.queueVideos, i, app.queueTitle)}>
+            <span class="n">{#if current}<Play size={13} fill="currentColor" />{:else}{i + 1}{/if}</span>
+            <span class="t">{v.title}</span>
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="bottom bar" onclick={(e) => e.stopPropagation()} ondblclick={(e) => e.stopPropagation()}>
@@ -96,6 +157,7 @@
     <div class="row controls">
       <button class="ghost" disabled={!hasPrev} onclick={() => playNext(-1)} title="Previous (P)"><SkipBack size={18} /></button>
       <button class="primary round" onclick={togglePause} title="Play/Pause (Space)">{#if app.player.paused}<Play size={18} fill="currentColor" />{:else}<Pause size={18} fill="currentColor" />{/if}</button>
+      <button class="ghost" onclick={stop} title="Stop and close the video"><Square size={17} fill="currentColor" /></button>
       <button class="ghost" disabled={!hasNext} onclick={() => playNext(1)} title="Next (N)"><SkipForward size={18} /></button>
       <span class="time">{fmtTime(shownPos)} / {fmtTime(app.player.duration)}</span>
       <span class="grow"></span>
@@ -105,6 +167,11 @@
       <input class="vol" type="range" min="0" max={volumeMax()} step="1" value={app.player.volume}
         oninput={(e) => setVolume(Number(e.currentTarget.value))} />
       <span class="volnum" class:boost={app.player.volume > 100}>{Math.round(app.player.volume)}%</span>
+      {#if app.queueTitle !== null}
+        <button class="ghost" class:on={panelOpen} onclick={() => (panelOpen = !panelOpen)} title="Playlist: {app.queueTitle}">
+          <ListVideo size={18} />
+        </button>
+      {/if}
       <button class="ghost" onclick={() => setFullscreen(!fullscreen)} title="Fullscreen (F)">{#if fullscreen}<Minimize size={18} />{:else}<Maximize size={18} />{/if}</button>
     </div>
   </div>
@@ -128,5 +195,23 @@
   .round { border-radius: 50%; width: 42px; height: 42px; padding: 0; }
   .bar button { background: #0009; }
   .bar button.ghost { background: transparent; }
+  .bar button.ghost.on { color: var(--primary); }
+  /* Icon buttons: no hover border/background, only the icon turns gold. */
+  .bar button.ghost:hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--primary); }
   .bar button.primary { background: var(--primary); }
+
+  .panel {
+    position: absolute; right: 16px; top: 70px; bottom: 120px; width: 340px; display: flex; flex-direction: column;
+    background: #101014f0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px #000a;
+  }
+  .panel header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .ptitle { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .small { font-size: 12px; }
+  .items { overflow-y: auto; flex: 1; padding: 6px; }
+  .item { display: flex; width: 100%; justify-content: flex-start; text-align: left; gap: 10px; background: transparent; border: 1px solid transparent; padding: 8px 10px; }
+  .item:hover { background: var(--surface-2); }
+  .item.current { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+  .n { width: 22px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; display: inline-flex; justify-content: center; }
+  .item.current .n { color: var(--primary); }
+  .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

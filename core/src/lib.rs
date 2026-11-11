@@ -6,6 +6,7 @@ mod error;
 mod rules;
 pub mod models;
 pub mod mpv;
+pub mod probe;
 mod scan;
 
 pub use db::{scan_folder_files_pub, Library, DEFAULT_SETTINGS};

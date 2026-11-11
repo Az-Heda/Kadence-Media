@@ -3,6 +3,7 @@ use tauri::{AppHandle, Manager, State};
 use vp_core::mpv::MpvConfig;
 use vp_core::{scan_folder_files_pub, Folder, Playlist, Rule, RuleInput, ScanReport, Tag, Video, VideoFilter};
 
+use crate::indexer::{Indexer, Progress};
 use crate::player::{json_f64, resolve_mpv, PlayerState};
 use crate::AppState;
 
@@ -33,9 +34,10 @@ fn scan_one(state: &AppState, id: i64) -> Res<ScanReport> {
 }
 
 #[tauri::command]
-pub async fn add_folder(state: State<'_, AppState>, path: String) -> Res<Folder> {
+pub async fn add_folder(app: AppHandle, state: State<'_, AppState>, path: String) -> Res<Folder> {
     let folder = lib!(state).add_folder(&path).map_err(e)?;
     scan_one(&state, folder.id)?;
+    Indexer::start(&app); // read durations in the background
     lib!(state)
         .list_folders()
         .map_err(e)?
@@ -52,7 +54,7 @@ pub fn remove_folder(state: State<'_, AppState>, id: i64) -> Res<()> {
 /// Rescan every folder. Folders that are not accessible are reported in `errors`
 /// but never wipe their videos.
 #[tauri::command]
-pub async fn rescan_all(state: State<'_, AppState>) -> Res<(ScanReport, Vec<String>)> {
+pub async fn rescan_all(app: AppHandle, state: State<'_, AppState>) -> Res<(ScanReport, Vec<String>)> {
     let ids = lib!(state).folder_ids().map_err(e)?;
     let mut total = ScanReport::default();
     let mut errors = Vec::new();
@@ -67,7 +69,13 @@ pub async fn rescan_all(state: State<'_, AppState>) -> Res<(ScanReport, Vec<Stri
             Err(msg) => errors.push(msg),
         }
     }
+    Indexer::start(&app); // read durations of new/changed videos in the background
     Ok((total, errors))
+}
+
+#[tauri::command]
+pub fn indexing_status(state: State<'_, AppState>) -> Progress {
+    state.indexer.progress()
 }
 
 #[tauri::command]
@@ -117,6 +125,11 @@ pub fn count_pattern_matches(state: State<'_, AppState>, pattern: String, case_i
 #[tauri::command]
 pub fn list_videos(state: State<'_, AppState>, filter: Option<VideoFilter>) -> Res<Vec<Video>> {
     lib!(state).list_videos(&filter.unwrap_or_default()).map_err(e)
+}
+
+#[tauri::command]
+pub fn set_rating(state: State<'_, AppState>, id: i64, rating: f64) -> Res<()> {
+    lib!(state).set_rating(id, rating).map_err(e)
 }
 
 #[tauri::command]
@@ -229,6 +242,7 @@ pub async fn play_video(app: AppHandle, state: State<'_, AppState>, id: i64) -> 
         wid: if embed { *state.wid.lock().unwrap() } else { None },
         volume: setting_f64(&settings, "volume", 100.0).clamp(0.0, volume_max),
         volume_max,
+        probe: false,
     };
     state.player.play(&app, id, &video.path, &cfg)
 }

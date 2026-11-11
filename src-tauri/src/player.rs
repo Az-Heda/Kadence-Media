@@ -94,6 +94,7 @@ fn make_handler(app: AppHandle, state: Arc<Mutex<PlayerState>>) -> Arc<dyn Fn(Mp
     let last_pos_emit = Mutex::new(Instant::now() - Duration::from_secs(1));
     Arc::new(move |ev| match ev {
         MpvEvent::Property { name, data } => {
+            let mut found: Option<(i64, f64)> = None;
             let snapshot = {
                 let mut st = state.lock().unwrap();
                 match name.as_str() {
@@ -105,7 +106,12 @@ fn make_handler(app: AppHandle, state: Arc<Mutex<PlayerState>>) -> Arc<dyn Fn(Mp
                         }
                         *last = Instant::now();
                     }
-                    "duration" => st.duration = data.as_f64().unwrap_or(0.0),
+                    "duration" => {
+                        st.duration = data.as_f64().unwrap_or(0.0);
+                        if st.loaded && st.duration > 0.0 {
+                            found = st.video_id.map(|id| (id, st.duration));
+                        }
+                    }
                     "pause" => st.paused = data.as_bool().unwrap_or(false),
                     "volume" => st.volume = data.as_f64().unwrap_or(st.volume),
                     "mute" => st.muted = data.as_bool().unwrap_or(false),
@@ -114,6 +120,18 @@ fn make_handler(app: AppHandle, state: Arc<Mutex<PlayerState>>) -> Arc<dyn Fn(Mp
                 }
                 st.clone()
             };
+            // Playing a video reveals its duration for free: keep it so the indexer can skip it.
+            if let Some((id, duration)) = found {
+                let saved = app
+                    .state::<AppState>()
+                    .lib
+                    .lock()
+                    .map(|lib| lib.set_duration(id, duration).is_ok())
+                    .unwrap_or(false);
+                if saved {
+                    let _ = app.emit("video-duration", crate::indexer::DurationFound { id, duration });
+                }
+            }
             let _ = app.emit("player-state", snapshot);
         }
         MpvEvent::FileLoaded => {

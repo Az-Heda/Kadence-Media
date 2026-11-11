@@ -1,5 +1,6 @@
 mod commands;
 mod host;
+mod indexer;
 mod player;
 
 use std::path::PathBuf;
@@ -11,6 +12,7 @@ use vp_core::Library;
 pub struct AppState {
     pub lib: Mutex<Library>,
     pub player: player::Player,
+    pub indexer: indexer::Indexer,
     /// Native window id mpv draws into (None => mpv opens its own window).
     pub wid: Mutex<Option<i64>>,
     /// Where the SQLite database actually lives (shown in Settings).
@@ -75,6 +77,7 @@ pub fn run() {
             app.manage(AppState {
                 lib: Mutex::new(lib),
                 player: player::Player::default(),
+                indexer: indexer::Indexer::default(),
                 wid: Mutex::new(None),
                 db_path,
             });
@@ -91,6 +94,8 @@ pub fn run() {
                 .shadow(false)
                 .skip_taskbar(true)
                 .resizable(false)
+                // Needed for HTML5 drag-and-drop (playlist reordering) to work on Windows.
+                .disable_drag_drop_handler()
                 .visible(false)
                 .inner_size(size.width as f64, size.height as f64)
                 .parent(&main)?
@@ -133,6 +138,8 @@ pub fn run() {
             commands::count_pattern_matches,
             commands::list_videos,
             commands::set_watched,
+            commands::set_rating,
+            commands::indexing_status,
             commands::list_tags,
             commands::create_tag,
             commands::update_tag,
@@ -163,6 +170,7 @@ pub fn run() {
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
             if let Some(state) = handle.try_state::<AppState>() {
+                state.indexer.shutdown();
                 state.player.shutdown();
             }
         }

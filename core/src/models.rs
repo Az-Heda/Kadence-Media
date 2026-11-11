@@ -38,14 +38,38 @@ pub struct Video {
     pub title: String,
     pub size: i64,
     pub modified: i64,
+    /// File creation time (unix seconds; falls back to modified time where unsupported).
+    pub created: i64,
     pub watched: bool,
+    /// 0 = unrated, otherwise 0.5..=5.0 in steps of 0.5.
+    pub rating: f64,
+    /// Seconds. None = not indexed yet; Some(0.0) = could not be determined.
+    pub duration: Option<f64>,
     pub tags: Vec<VideoTag>,
     pub playlist_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SortBy {
+    /// Playlist order when a playlist is selected, otherwise by title.
+    #[default]
+    Default,
+    Title,
+    Path,
+    Created,
+    Size,
+    /// Videos without a known duration always sort last.
+    Duration,
+    /// Unrated videos always sort last.
+    Rating,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct VideoFilter {
+    pub sort_by: SortBy,
+    pub sort_desc: bool,
     /// Case-insensitive substring match on title or path.
     pub search: Option<String>,
     /// Video must have ALL of these tags.

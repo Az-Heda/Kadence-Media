@@ -1,4 +1,4 @@
-import { api, errMsg, type Folder, type Playlist, type PlayerState, type Settings, type Tag, type Video } from './api';
+import { api, errMsg, type SortBy, type Folder, type Playlist, type PlayerState, type Settings, type Tag, type Video } from './api';
 
 export type Page = 'library' | 'folders' | 'collections' | 'rules' | 'settings';
 
@@ -7,7 +7,7 @@ export const DEFAULT_PRIMARY = '#d4a017';
 export const app = $state({
   page: 'library' as Page,
   playerView: false,
-  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '' } as Settings,
+  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '', escape_action: 'stop' } as Settings,
   folders: [] as Folder[],
   tags: [] as Tag[],
   playlists: [] as Playlist[],
@@ -15,7 +15,13 @@ export const app = $state({
   player: {
     video_id: null, loaded: false, idle: true, paused: false, position: 0, duration: 0, volume: 100, muted: false,
   } as PlayerState,
+  dnd: { dragging: null, target: null, after: false } as { dragging: number | null; target: number | null; after: boolean },
+  indexing: { running: false, done: 0, total: 0 } as { running: boolean; done: number; total: number },
   queue: [] as number[],
+  /// Videos of the current queue, shown in the player's side panel.
+  queueVideos: [] as Video[],
+  /// Set when the queue comes from a playlist (enables the side panel).
+  queueTitle: null as string | null,
   toast: null as { text: string; error: boolean } | null,
   filter: {
     search: '',
@@ -23,6 +29,8 @@ export const app = $state({
     tag_ids: [] as number[],
     playlist_id: null as number | null,
     folder_id: null as number | null,
+    sort_by: 'path' as SortBy,
+    sort_desc: false,
   },
 });
 
@@ -86,6 +94,8 @@ export async function loadVideos() {
       tag_ids: [...f.tag_ids],
       playlist_id: f.playlist_id,
       folder_id: f.folder_id,
+      sort_by: f.sort_by,
+      sort_desc: f.sort_desc,
     }),
   );
   if (videos) app.videos = videos;
@@ -111,9 +121,12 @@ export function currentVideo(): Video | undefined {
 }
 
 /** Play `ids[index]` and remember `ids` as the queue for next/previous/auto-advance. */
-export async function playQueue(ids: number[], index: number) {
-  if (index < 0 || index >= ids.length) return;
+export async function playQueue(videos: Video[], index: number, title: string | null = null) {
+  if (index < 0 || index >= videos.length) return;
+  const ids = videos.map((v) => v.id);
   app.queue = ids;
+  app.queueVideos = videos;
+  app.queueTitle = title;
   const ok = await guarded(async () => {
     await api.playVideo(ids[index]);
     return true;
@@ -128,7 +141,7 @@ export function queueIndex(): number {
 export async function playNext(delta = 1) {
   const i = queueIndex();
   if (i < 0) return;
-  await playQueue(app.queue, i + delta);
+  await playQueue(app.queueVideos, i + delta, app.queueTitle);
 }
 
 export async function togglePause() {
@@ -138,6 +151,45 @@ export async function togglePause() {
 export async function stopPlayback() {
   await guarded(() => api.stop());
   app.playerView = false;
+}
+
+/** Click a column to sort by it; click again to flip direction. */
+export function setSort(key: SortBy) {
+  if (app.filter.sort_by === key) {
+    app.filter.sort_desc = !app.filter.sort_desc;
+  } else {
+    app.filter.sort_by = key;
+    app.filter.sort_desc = key === 'created' || key === 'size' || key === 'duration' || key === 'rating'; // newest / biggest / longest / best first
+  }
+}
+
+export async function setRating(v: Video, rating: number) {
+  await guarded(async () => {
+    await api.setRating(v.id, rating);
+    v.rating = rating;
+    const q = app.queueVideos.find((x) => x.id === v.id);
+    if (q) q.rating = rating;
+  });
+}
+
+/** Move `draggedId` next to `targetId` in the playlist's full order (works while other filters hide items). */
+export async function moveInPlaylist(playlistId: number, draggedId: number, targetId: number, after: boolean) {
+  await guarded(async () => {
+    const full = await api.listVideos({ playlist_id: playlistId, sort_by: 'default' });
+    const ids = full.map((v) => v.id).filter((id) => id !== draggedId);
+    const at = ids.indexOf(targetId);
+    if (at < 0) return;
+    ids.splice(after ? at + 1 : at, 0, draggedId);
+    await api.reorderPlaylist(playlistId, ids);
+    await loadVideos();
+  });
+}
+
+export async function removeFromPlaylist(playlistId: number, videoId: number) {
+  await guarded(async () => {
+    await api.removeFromPlaylist(playlistId, videoId);
+    await refreshAll();
+  });
 }
 
 export async function toggleWatched(v: Video) {

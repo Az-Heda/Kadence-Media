@@ -13,6 +13,7 @@ pub struct ScannedFile {
     pub title: String,
     pub size: i64,
     pub modified: i64,
+    pub created: i64,
 }
 
 pub fn is_video(path: &Path) -> bool {
@@ -39,6 +40,13 @@ pub fn scan_dir(root: &Path) -> Vec<ScannedFile> {
             .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
+        let created = meta
+            .created()
+            .or_else(|_| meta.modified())
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(modified);
         let title = entry
             .path()
             .file_stem()
@@ -49,6 +57,7 @@ pub fn scan_dir(root: &Path) -> Vec<ScannedFile> {
             title,
             size: meta.len() as i64,
             modified,
+            created,
         });
     }
     out.sort_by(|a, b| a.path.cmp(&b.path));

@@ -35,6 +35,8 @@ pub struct MpvConfig {
     pub wid: Option<i64>,
     pub volume: f64,
     pub volume_max: f64,
+    /// Headless mode (no video/audio output) used to read file metadata.
+    pub probe: bool,
 }
 
 pub struct MpvClient {
@@ -62,26 +64,44 @@ impl MpvClient {
     pub fn spawn(cfg: &MpvConfig, on_event: EventHandler) -> Result<Self, String> {
         let ipc = ipc_path();
         let mut cmd = Command::new(&cfg.binary);
-        cmd.args([
-            "--idle=yes",
-            "--no-terminal",
-            "--no-osc",
-            "--no-osd-bar",
-            "--osd-level=0",
-            "--input-default-bindings=no",
-            "--input-vo-keyboard=no",
-            "--keep-open=no",
-            "--sub-auto=fuzzy",
-            "--audio-display=no",
-            "--hwdec=auto-safe",
-            "--title=Kadence Media",
-        ]);
-        cmd.arg(format!("--volume={}", cfg.volume));
-        cmd.arg(format!("--volume-max={}", cfg.volume_max));
-        cmd.arg(format!("--input-ipc-server={ipc}"));
-        if let Some(wid) = cfg.wid {
-            cmd.arg(format!("--wid={wid}"));
+        if cfg.probe {
+            cmd.args([
+                "--idle=yes",
+                "--no-terminal",
+                "--no-config",
+                "--load-scripts=no",
+                "--vo=null",
+                "--ao=null",
+                "--pause=yes",
+                "--cache=no",
+                "--hwdec=no",
+                "--sub-auto=no",
+                "--audio-display=no",
+                "--keep-open=no",
+                "--msg-level=all=no",
+            ]);
+        } else {
+            cmd.args([
+                "--idle=yes",
+                "--no-terminal",
+                "--no-osc",
+                "--no-osd-bar",
+                "--osd-level=0",
+                "--input-default-bindings=no",
+                "--input-vo-keyboard=no",
+                "--keep-open=no",
+                "--sub-auto=fuzzy",
+                "--audio-display=no",
+                "--hwdec=auto-safe",
+                "--title=Kadence Media",
+            ]);
+            cmd.arg(format!("--volume={}", cfg.volume));
+            cmd.arg(format!("--volume-max={}", cfg.volume_max));
+            if let Some(wid) = cfg.wid {
+                cmd.arg(format!("--wid={wid}"));
+            }
         }
+        cmd.arg(format!("--input-ipc-server={ipc}"));
         cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
         let mut child = cmd
             .spawn()

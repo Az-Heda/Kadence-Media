@@ -1,0 +1,150 @@
+name: Release
+
+# Runs only for tags like v1.0.0 (v<number>.<number>.<number>), and only releases
+# if the tagged commit is on `main`.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APP_NAME: kadence-media
+
+jobs:
+  # ------------------------------------------------------------------ guard
+  verify-main:
+    name: Tag is on main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fail unless the tagged commit is reachable from origin/main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME ($GITHUB_SHA) is not on the main branch. No release created."
+            exit 1
+          fi
+
+  # ------------------------------------------------------------------ tests
+  test:
+    name: Tests
+    needs: verify-main
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: cargo test -p vp-core
+      - run: npm ci
+      - run: npm run check
+
+  # ------------------------------------------------------------------ build
+  build:
+    name: Build (${{ matrix.name }})
+    needs: test
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-22.04          # oldest available image => widest glibc compatibility
+            binary: kadence-media
+            asset: kadence-media-linux-x86_64
+          - name: windows-x86_64
+            os: windows-latest
+            binary: kadence-media.exe
+            asset: kadence-media-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev \
+            libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # `tauri build --no-bundle` compiles the frontend + a release binary (with the
+      # frontend embedded) and skips the installer/package step.
+      - name: Build executable
+        run: npm run tauri build -- --no-bundle
+
+      - name: Collect executable
+        shell: bash
+        run: |
+          mkdir -p dist-release
+          cp "target/release/${{ matrix.binary }}" "dist-release/${{ matrix.asset }}"
+          ls -l dist-release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist-release/${{ matrix.asset }}
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- release
+  release:
+    name: Create GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Write release notes header
+        run: |
+          cat > header.md <<'NOTES'
+          Standalone executables (no installer):
+
+          - `kadence-media-linux-x86_64` — run `chmod +x` first. Needs `libwebkit2gtk-4.1` and `mpv` (`sudo apt install mpv`).
+          - `kadence-media-windows-x86_64.exe` — needs the WebView2 runtime (included in Windows 11) and `mpv.exe` (on PATH, next to the exe, or set in Settings).
+
+          The library database (`KadenceMedia.sqlite3`) is created next to the executable.
+
+          ---
+          NOTES
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          chmod +x artifacts/kadence-media-linux-x86_64
+          gh release create "$GITHUB_REF_NAME" \
+            artifacts/kadence-media-linux-x86_64 \
+            artifacts/kadence-media-windows-x86_64.exe \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file header.md \
+            --generate-notes \
+            --verify-tag

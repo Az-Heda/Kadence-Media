@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
-  import { api, type PlayerState } from './lib/api';
+  import { api, type IndexingProgress, type PlayerState } from './lib/api';
   import { app, defaultFolderId, loadSettings, refreshAll, playNext, queueIndex, guarded, toast, type Page } from './lib/store.svelte';
   import Library from './pages/Library.svelte';
   import Folders from './pages/Folders.svelte';
@@ -16,6 +16,7 @@
   import WandSparkles from '@lucide/svelte/icons/wand-sparkles';
   import Settings2 from '@lucide/svelte/icons/settings';
   import Clapperboard from '@lucide/svelte/icons/clapperboard';
+  import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
   const surface = new URLSearchParams(location.search).get('surface') ?? 'overlay';
 
@@ -39,6 +40,7 @@
       app.filter.folder_id = defaultFolderId(); // default folder is applied before the first load
       await refreshAll();
       app.player = await api.playerState();
+      app.indexing = await api.indexingStatus();
       // Pick up files added/removed while the app was closed (errors only, to avoid noise).
       const [, errors] = await api.rescanAll();
       if (errors.length) toast(errors.join('\n'), true);
@@ -51,6 +53,14 @@
         if (v) v.watched = e.payload.watched;
         if (app.filter.watched !== null) refreshAll();
       }),
+      listen<IndexingProgress>('indexing-progress', (e) => (app.indexing = e.payload)),
+      listen<{ id: number; duration: number }>('video-duration', (e) => {
+        for (const list of [app.videos, app.queueVideos]) {
+          const v = list.find((x) => x.id === e.payload.id);
+          if (v) v.duration = e.payload.duration;
+        }
+      }),
+      listen<string>('indexing-error', (e) => toast(`Could not read video durations: ${e.payload}`, true)),
       listen<{ video_id: number | null; reason: string }>('player-ended', (e) => {
         // Auto-advance through the queue (playlist playback) when a video finishes.
         if (e.payload.reason === 'eof' && e.payload.video_id != null) {
@@ -75,6 +85,12 @@
             <p.icon size={18} />{p.label}
           </button>
         {/each}
+        {#if app.indexing.running}
+          <div class="indexing" title="Reading video durations in the background">
+            <span class="spin"><LoaderCircle size={15} /></span>
+            Reading durations {app.indexing.done}/{app.indexing.total}
+          </div>
+        {/if}
       </nav>
       <div class="content">
         <main>
@@ -99,8 +115,11 @@
   .brand { font-size: 17px; font-weight: 700; padding: 6px 10px 16px; letter-spacing: .02em; }
   .brand { display: flex; align-items: center; gap: 8px; }
   .logo { color: var(--primary); display: inline-flex; }
-  .nav { text-align: left; display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+  .nav { justify-content: flex-start; text-align: left; display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
   .nav.active { background: var(--primary-soft); color: var(--primary); border-color: transparent; }
+  .indexing { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 12px; color: var(--muted); }
+  .spin { display: inline-flex; animation: spin 1s linear infinite; color: var(--primary); }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   main { flex: 1; overflow-y: auto; padding: 22px 26px; }
   .toast {

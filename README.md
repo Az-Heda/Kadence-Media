@@ -65,6 +65,15 @@ Rules (regex on the video's full path → tags + playlists) are applied to **new
 Use "Apply to existing videos" on the Rules page to run them on the current library (additive only).
 Use `[\\/]` to match both Windows and Linux path separators.
 
+## Releases (GitHub Actions)
+
+`.github/workflows/release.yml` runs when a tag like `v1.0.0` (`v` + number.number.number) is pushed. It first checks that the tagged commit is on `main` (otherwise it fails and releases nothing), runs the tests, then builds two standalone executables (no installers) with `tauri build --no-bundle`:
+
+- `kadence-media-linux-x86_64` (built on Ubuntu 22.04; run `chmod +x` after download; needs webkit2gtk 4.1 and mpv)
+- `kadence-media-windows-x86_64.exe` (needs WebView2 and mpv.exe)
+
+Both are attached to a GitHub Release named after the tag. To release: `git tag v0.1.0 && git push origin v0.1.0` (from `main`).
+
 ## Known limitations
 - No thumbnails yet (placeholder tiles); no resume-position.
 - If the video doesn't show embedded on your setup, turn off "Embed video" in Settings → mpv uses its own window.

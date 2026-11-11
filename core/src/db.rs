@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS videos (
     title     TEXT NOT NULL,
     size      INTEGER NOT NULL DEFAULT 0,
     modified  INTEGER NOT NULL DEFAULT 0,
+    created   INTEGER NOT NULL DEFAULT 0,
+    rating    INTEGER NOT NULL DEFAULT 0,
+    duration  REAL,
     watched   INTEGER NOT NULL DEFAULT 0,
     added_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
@@ -74,6 +77,7 @@ pub const DEFAULT_SETTINGS: &[(&str, &str)] = &[
     ("mpv_path", ""),
     ("library_view", "grid"),
     ("default_folder_id", ""),
+    ("escape_action", "stop"),
 ];
 
 pub struct Library {
@@ -92,6 +96,19 @@ impl Library {
     fn init(conn: Connection) -> Result<Self> {
         conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         conn.execute_batch(SCHEMA)?;
+        // Upgrade databases created before these columns existed.
+        for (col, ddl) in [
+            ("created", "ALTER TABLE videos ADD COLUMN created INTEGER NOT NULL DEFAULT 0"),
+            ("rating", "ALTER TABLE videos ADD COLUMN rating INTEGER NOT NULL DEFAULT 0"),
+            ("duration", "ALTER TABLE videos ADD COLUMN duration REAL"),
+        ] {
+            let exists: bool = conn
+                .prepare("SELECT 1 FROM pragma_table_info('videos') WHERE name = ?1")?
+                .exists(params![col])?;
+            if !exists {
+                conn.execute_batch(ddl)?;
+            }
+        }
         Ok(Library { conn })
     }
 
@@ -191,13 +208,17 @@ impl Library {
         {
             let mut exists = tx.prepare("SELECT 1 FROM videos WHERE path = ?1")?;
             let mut upsert = tx.prepare(
-                "INSERT INTO videos(path, folder_id, title, size, modified)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
-                 ON CONFLICT(path) DO UPDATE SET size = excluded.size, modified = excluded.modified",
+                "INSERT INTO videos(path, folder_id, title, size, modified, created)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT(path) DO UPDATE SET size = excluded.size, modified = excluded.modified,
+                                                 created = excluded.created,
+                                                 -- a changed file needs its duration re-read
+                                                 duration = CASE WHEN excluded.size != size OR excluded.modified != modified
+                                                                 THEN NULL ELSE duration END",
             )?;
             for f in files {
                 let known = exists.exists(params![f.path])?;
-                upsert.execute(params![f.path, folder_id, f.title, f.size, f.modified])?;
+                upsert.execute(params![f.path, folder_id, f.title, f.size, f.modified, f.created])?;
                 if !known {
                     report.added += 1;
                     // Automatic rules apply to newly added videos only, so tags the
@@ -232,7 +253,7 @@ impl Library {
     // ----------------------------------------------------------------- videos
 
     pub fn get_video(&self, id: i64) -> Result<Video> {
-        let mut v = self.query_videos("v.id = ?", vec![Value::Integer(id)], None)?;
+        let mut v = self.query_videos("v.id = ?", vec![Value::Integer(id)], None, SortBy::Default, false)?;
         v.pop().ok_or_else(|| Error::Msg(format!("video {id} not found")))
     }
 
@@ -282,24 +303,41 @@ impl Library {
             args.push(Value::Integer(unique.len() as i64));
         }
         let where_sql = if clauses.is_empty() { "1=1".to_string() } else { clauses.join(" AND ") };
-        self.query_videos(&where_sql, args, join_playlist)
+        self.query_videos(&where_sql, args, join_playlist, filter.sort_by, filter.sort_desc)
     }
 
-    fn query_videos(&self, where_sql: &str, args: Vec<Value>, playlist: Option<i64>) -> Result<Vec<Video>> {
+    fn query_videos(
+        &self,
+        where_sql: &str,
+        args: Vec<Value>,
+        playlist: Option<i64>,
+        sort_by: SortBy,
+        desc: bool,
+    ) -> Result<Vec<Video>> {
         let mut all_args: Vec<Value> = Vec::new();
-        let (join, order) = match playlist {
+        let join = match playlist {
             Some(pl) => {
                 all_args.push(Value::Integer(pl));
-                (
-                    "JOIN playlist_items pi ON pi.video_id = v.id AND pi.playlist_id = ?",
-                    "pi.position ASC",
-                )
+                "JOIN playlist_items pi ON pi.video_id = v.id AND pi.playlist_id = ?"
             }
-            None => ("", "v.title COLLATE NOCASE ASC, v.id ASC"),
+            None => "",
+        };
+        let dir = if desc { "DESC" } else { "ASC" };
+        // Only fixed strings are interpolated into the SQL (never user input).
+        let order = match (sort_by, playlist) {
+            (SortBy::Default, Some(_)) => format!("pi.position {dir}"),
+            (SortBy::Default, None) | (SortBy::Title, _) => format!("v.title COLLATE NOCASE {dir}, v.id ASC"),
+            (SortBy::Path, _) => format!("v.path COLLATE NOCASE {dir}, v.id ASC"),
+            (SortBy::Created, _) => format!("v.created {dir}, v.id ASC"),
+            (SortBy::Size, _) => format!("v.size {dir}, v.id ASC"),
+            (SortBy::Rating, _) => format!("(v.rating = 0) ASC, v.rating {dir}, v.id ASC"),
+            (SortBy::Duration, _) => format!(
+                "(v.duration IS NULL OR v.duration <= 0) ASC, v.duration {dir}, v.id ASC"
+            ),
         };
         all_args.extend(args);
         let sql = format!(
-            "SELECT v.id, v.path, v.folder_id, v.title, v.size, v.modified, v.watched
+            "SELECT v.id, v.path, v.folder_id, v.title, v.size, v.modified, v.watched, v.created, v.rating, v.duration
              FROM videos v {join} WHERE {where_sql} ORDER BY {order}"
         );
         let mut st = self.conn.prepare(&sql)?;
@@ -313,6 +351,9 @@ impl Library {
                     size: r.get(4)?,
                     modified: r.get(5)?,
                     watched: r.get::<_, i64>(6)? != 0,
+                    created: r.get(7)?,
+                    rating: r.get::<_, i64>(8)? as f64 / 2.0,
+                    duration: r.get(9)?,
                     tags: Vec::new(),
                     playlist_ids: Vec::new(),
                 })
@@ -349,6 +390,41 @@ impl Library {
         self.conn.execute(
             "UPDATE videos SET watched = ?1 WHERE id = ?2",
             params![watched as i64, video_id],
+        )?;
+        Ok(())
+    }
+
+    /// Videos whose duration has not been read yet (oldest first).
+    pub fn videos_missing_duration(&self, limit: usize) -> Result<Vec<(i64, String)>> {
+        let mut st = self
+            .conn
+            .prepare("SELECT id, path FROM videos WHERE duration IS NULL ORDER BY id LIMIT ?1")?;
+        let rows = st.query_map(params![limit as i64], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    pub fn count_missing_duration(&self) -> Result<usize> {
+        Ok(self.conn.query_row("SELECT COUNT(*) FROM videos WHERE duration IS NULL", [], |r| r.get::<_, i64>(0))? as usize)
+    }
+
+    /// Store a duration in seconds (0 = unreadable, so it is not retried forever).
+    pub fn set_duration(&self, video_id: i64, seconds: f64) -> Result<()> {
+        if !seconds.is_finite() || seconds < 0.0 {
+            return Err(Error::Msg(format!("invalid duration {seconds}")));
+        }
+        self.conn.execute("UPDATE videos SET duration = ?1 WHERE id = ?2", params![seconds, video_id])?;
+        Ok(())
+    }
+
+    /// Set a star rating: 0 clears it, otherwise 0.5..=5.0 in steps of 0.5.
+    pub fn set_rating(&self, video_id: i64, stars: f64) -> Result<()> {
+        let halves = stars * 2.0;
+        if !(0.0..=10.0).contains(&halves) || halves.fract() != 0.0 {
+            return Err(Error::Msg(format!("invalid rating {stars}: use 0 to 5 in steps of 0.5")));
+        }
+        self.conn.execute(
+            "UPDATE videos SET rating = ?1 WHERE id = ?2",
+            params![halves as i64, video_id],
         )?;
         Ok(())
     }
@@ -751,5 +827,167 @@ mod folder_tests {
         lib.remove_folder(child.id).unwrap();
         assert_eq!(lib.default_folder_id().unwrap(), None);
         assert!(lib.set_default_folder(Some(9999)).is_err());
+    }
+}
+
+#[cfg(test)]
+mod rating_sort_tests {
+    use super::*;
+    use std::fs;
+
+    fn lib_with(files: &[(&str, usize)]) -> (tempfile::TempDir, Library) {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, size) in files {
+            fs::write(dir.path().join(name), vec![b'x'; *size]).unwrap();
+        }
+        let mut lib = Library::open_in_memory().unwrap();
+        let f = lib.add_folder(dir.path().to_str().unwrap()).unwrap();
+        lib.scan_folder(f.id).unwrap();
+        (dir, lib)
+    }
+
+    fn titles(lib: &Library, sort_by: SortBy, desc: bool) -> Vec<String> {
+        lib.list_videos(&VideoFilter { sort_by, sort_desc: desc, ..Default::default() })
+            .unwrap()
+            .into_iter()
+            .map(|v| v.title)
+            .collect()
+    }
+
+    #[test]
+    fn sorts_by_size_path_title_and_direction() {
+        let (_d, lib) = lib_with(&[("b.mp4", 30), ("a.mp4", 20), ("c.mp4", 10)]);
+        assert_eq!(titles(&lib, SortBy::Size, false), vec!["c", "a", "b"]);
+        assert_eq!(titles(&lib, SortBy::Size, true), vec!["b", "a", "c"]);
+        assert_eq!(titles(&lib, SortBy::Path, false), vec!["a", "b", "c"]);
+        assert_eq!(titles(&lib, SortBy::Path, true), vec!["c", "b", "a"]);
+        assert_eq!(titles(&lib, SortBy::Title, true), vec!["c", "b", "a"]);
+        assert_eq!(titles(&lib, SortBy::Default, false), vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn sorts_by_created_and_stores_it() {
+        let (_d, lib) = lib_with(&[("a.mp4", 1), ("b.mp4", 1)]);
+        let vids = lib.list_videos(&VideoFilter::default()).unwrap();
+        assert!(vids.iter().all(|v| v.created > 0));
+        // Force distinct creation times and check both directions.
+        lib.conn.execute("UPDATE videos SET created = 100 WHERE title = 'b'", []).unwrap();
+        lib.conn.execute("UPDATE videos SET created = 200 WHERE title = 'a'", []).unwrap();
+        assert_eq!(titles(&lib, SortBy::Created, false), vec!["b", "a"]);
+        assert_eq!(titles(&lib, SortBy::Created, true), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn default_sort_in_playlist_is_playlist_order_but_explicit_sort_wins() {
+        let (_d, lib) = lib_with(&[("a.mp4", 10), ("b.mp4", 20)]);
+        let v = lib.list_videos(&VideoFilter::default()).unwrap();
+        let pl = lib.create_playlist("p").unwrap();
+        lib.add_to_playlist(pl.id, v[1].id).unwrap(); // b first
+        lib.add_to_playlist(pl.id, v[0].id).unwrap();
+        let f = |sort_by, sort_desc| VideoFilter { playlist_id: Some(pl.id), sort_by, sort_desc, ..Default::default() };
+        let t = |f: VideoFilter| lib.list_videos(&f).unwrap().into_iter().map(|v| v.title).collect::<Vec<_>>();
+        assert_eq!(t(f(SortBy::Default, false)), vec!["b", "a"]);
+        assert_eq!(t(f(SortBy::Size, false)), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn sorts_by_rating_with_unrated_last() {
+        let (_d, lib) = lib_with(&[("a.mp4", 1), ("b.mp4", 1), ("c.mp4", 1), ("d.mp4", 1)]);
+        let ids: Vec<i64> = lib.list_videos(&VideoFilter::default()).unwrap().iter().map(|v| v.id).collect();
+        lib.set_rating(ids[0], 2.5).unwrap(); // a
+        lib.set_rating(ids[1], 5.0).unwrap(); // b
+        lib.set_rating(ids[2], 0.5).unwrap(); // c
+        // d stays unrated
+        assert_eq!(titles(&lib, SortBy::Rating, true), vec!["b", "a", "c", "d"]);
+        assert_eq!(titles(&lib, SortBy::Rating, false), vec!["c", "a", "b", "d"]);
+    }
+
+    #[test]
+    fn rating_validation_and_roundtrip() {
+        let (_d, lib) = lib_with(&[("a.mp4", 1)]);
+        let id = lib.list_videos(&VideoFilter::default()).unwrap()[0].id;
+        assert_eq!(lib.get_video(id).unwrap().rating, 0.0);
+        for good in [0.5, 1.0, 3.5, 5.0] {
+            lib.set_rating(id, good).unwrap();
+            assert_eq!(lib.get_video(id).unwrap().rating, good);
+        }
+        for bad in [-0.5, 5.5, 3.3, f64::NAN] {
+            assert!(lib.set_rating(id, bad).is_err(), "{bad} should be rejected");
+        }
+        assert_eq!(lib.get_video(id).unwrap().rating, 5.0);
+        lib.set_rating(id, 0.0).unwrap();
+        assert_eq!(lib.get_video(id).unwrap().rating, 0.0);
+    }
+
+    #[test]
+    fn old_databases_are_migrated() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("old.sqlite3");
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch(
+                "CREATE TABLE folders (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE);
+                 CREATE TABLE videos (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE,
+                   folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+                   title TEXT NOT NULL, size INTEGER NOT NULL DEFAULT 0, modified INTEGER NOT NULL DEFAULT 0,
+                   watched INTEGER NOT NULL DEFAULT 0, added_at INTEGER NOT NULL DEFAULT 0);
+                 INSERT INTO folders(id, path) VALUES (1, '/x');
+                 INSERT INTO videos(path, folder_id, title) VALUES ('/x/a.mp4', 1, 'a');",
+            )
+            .unwrap();
+        }
+        let lib = Library::open(&path).unwrap();
+        let v = lib.list_videos(&VideoFilter::default()).unwrap();
+        assert_eq!((v.len(), v[0].rating, v[0].created), (1, 0.0, 0));
+        lib.set_rating(v[0].id, 4.5).unwrap();
+        drop(lib);
+        // Reopening is idempotent.
+        assert_eq!(Library::open(&path).unwrap().list_videos(&VideoFilter::default()).unwrap()[0].rating, 4.5);
+    }
+}
+
+#[cfg(test)]
+mod duration_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn duration_indexing_queue_sorting_and_invalidation() {
+        let dir = tempfile::tempdir().unwrap();
+        for n in ["a.mp4", "b.mp4", "c.mp4"] {
+            fs::write(dir.path().join(n), b"x").unwrap();
+        }
+        let mut lib = Library::open_in_memory().unwrap();
+        let f = lib.add_folder(dir.path().to_str().unwrap()).unwrap();
+        lib.scan_folder(f.id).unwrap();
+        assert_eq!(lib.count_missing_duration().unwrap(), 3);
+
+        let vids = lib.list_videos(&VideoFilter::default()).unwrap();
+        assert!(vids.iter().all(|v| v.duration.is_none()));
+        let (a, b, c) = (vids[0].id, vids[1].id, vids[2].id);
+        lib.set_duration(a, 300.0).unwrap();
+        lib.set_duration(b, 0.0).unwrap(); // unreadable: counted as done, shown as unknown
+        assert!(lib.set_duration(c, -1.0).is_err());
+        let missing = lib.videos_missing_duration(10).unwrap();
+        assert_eq!(missing.iter().map(|m| m.0).collect::<Vec<_>>(), vec![c]);
+
+        lib.set_duration(c, 60.0).unwrap();
+        let order = |desc| {
+            lib.list_videos(&VideoFilter { sort_by: SortBy::Duration, sort_desc: desc, ..Default::default() })
+                .unwrap()
+                .into_iter()
+                .map(|v| v.id)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(order(false), vec![c, a, b]); // unknown (b) last
+        assert_eq!(order(true), vec![a, c, b]); // ...in both directions
+
+        // Rescanning an unchanged file keeps the duration; a changed file resets it.
+        lib.scan_folder(f.id).unwrap();
+        assert_eq!(lib.get_video(a).unwrap().duration, Some(300.0));
+        fs::write(dir.path().join("a.mp4"), b"much longer content now").unwrap();
+        lib.scan_folder(f.id).unwrap();
+        assert_eq!(lib.get_video(a).unwrap().duration, None);
+        assert_eq!(lib.get_video(c).unwrap().duration, Some(60.0));
     }
 }

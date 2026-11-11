@@ -76,6 +76,21 @@
 </section>
 
 <section class="card">
+  <h2>Player</h2>
+  <div class="field">
+    <div class="grow">
+      <div class="label">Escape key</div>
+      <div class="muted">What <kbd>Esc</kbd> does in the player (it always leaves fullscreen first).</div>
+    </div>
+    <select value={app.settings.escape_action} onchange={(e) => saveSetting('escape_action', e.currentTarget.value)}>
+      <option value="stop">Stop the video and return to the library</option>
+      <option value="back">Return to the library, keep playing</option>
+      <option value="none">Do nothing else</option>
+    </select>
+  </div>
+</section>
+
+<section class="card">
   <h2>Playback engine</h2>
   <div class="field">
     <div class="grow">
@@ -119,5 +134,6 @@
   .swatch { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid transparent; }
   .swatch.on { border-color: #fff; }
   input[type='checkbox'] { width: 20px; height: 20px; accent-color: var(--primary); }
+  kbd { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; font-size: 12px; }
   code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 </style>

@@ -6,10 +6,13 @@ export interface Tag extends VideoTag { video_count: number }
 export interface Playlist { id: number; name: string; video_count: number }
 export interface Video {
   id: number; path: string; folder_id: number; title: string;
-  size: number; modified: number; watched: boolean;
+  size: number; modified: number; created: number; watched: boolean; rating: number; duration: number | null;
   tags: VideoTag[]; playlist_ids: number[];
 }
+export interface IndexingProgress { running: boolean; done: number; total: number }
+export type SortBy = 'default' | 'title' | 'path' | 'created' | 'size' | 'duration' | 'rating';
 export interface VideoFilter {
+  sort_by?: SortBy; sort_desc?: boolean;
   search?: string; tag_ids?: number[]; playlist_id?: number | null;
   watched?: boolean | null; folder_id?: number | null;
 }
@@ -25,7 +28,7 @@ export interface PlayerState {
 }
 export type Settings = {
   volume_max: string; volume: string; primary_color: string; embed_video: string; mpv_path: string;
-  library_view: string; default_folder_id: string;
+  library_view: string; default_folder_id: string; escape_action: string;
 };
 
 export const api = {
@@ -45,6 +48,8 @@ export const api = {
   rescanAll: () => invoke<[ScanReport, string[]]>('rescan_all'),
 
   listVideos: (filter: VideoFilter) => invoke<Video[]>('list_videos', { filter }),
+  indexingStatus: () => invoke<IndexingProgress>('indexing_status'),
+  setRating: (id: number, rating: number) => invoke<void>('set_rating', { id, rating }),
   setWatched: (id: number, watched: boolean) => invoke<void>('set_watched', { id, watched }),
 
   listTags: () => invoke<Tag[]>('list_tags'),
