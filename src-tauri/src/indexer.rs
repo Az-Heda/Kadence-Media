@@ -1,5 +1,6 @@
 //! Background job that fills in video durations after scans, one file at a time,
-//! through a single headless mpv process. Scans themselves never wait for it.
+//! through a single headless mpv process, then generates thumbnails (see `thumbs`).
+//! Scans themselves never wait for it.
 
 use serde::Serialize;
 use std::path::Path;
@@ -51,6 +52,8 @@ impl Indexer {
         let app = app.clone();
         std::thread::spawn(move || {
             run(&app);
+            // Thumbnails come second: they use the durations to pick a good frame.
+            crate::thumbs::run(&app, &app.state::<AppState>().indexer.cancel);
             let ix = &app.state::<AppState>().indexer;
             ix.running.store(false, Ordering::SeqCst);
             let _ = app.emit("indexing-progress", ix.progress());

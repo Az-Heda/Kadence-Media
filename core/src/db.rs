@@ -21,10 +21,17 @@ CREATE TABLE IF NOT EXISTS videos (
     created   INTEGER NOT NULL DEFAULT 0,
     rating    INTEGER NOT NULL DEFAULT 0,
     duration  REAL,
+    thumb     INTEGER,
     watched   INTEGER NOT NULL DEFAULT 0,
     added_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_videos_folder ON videos(folder_id);
+-- Thumbnails live in their own table so listing videos never loads image data,
+-- and are removed together with their video.
+CREATE TABLE IF NOT EXISTS thumbnails (
+    video_id INTEGER PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
+    data     BLOB NOT NULL
+);
 CREATE TABLE IF NOT EXISTS tags (
     id    INTEGER PRIMARY KEY,
     name  TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -112,6 +119,7 @@ impl Library {
             ("created", "ALTER TABLE videos ADD COLUMN created INTEGER NOT NULL DEFAULT 0"),
             ("rating", "ALTER TABLE videos ADD COLUMN rating INTEGER NOT NULL DEFAULT 0"),
             ("duration", "ALTER TABLE videos ADD COLUMN duration REAL"),
+            ("thumb", "ALTER TABLE videos ADD COLUMN thumb INTEGER"),
         ] {
             let exists: bool = conn
                 .prepare("SELECT 1 FROM pragma_table_info('videos') WHERE name = ?1")?
@@ -120,6 +128,11 @@ impl Library {
                 conn.execute_batch(ddl)?;
             }
         }
+        // Thumbnails used to be files on disk: anything flagged done without an image is redone.
+        conn.execute(
+            "UPDATE videos SET thumb = NULL WHERE thumb = 1 AND id NOT IN (SELECT video_id FROM thumbnails)",
+            [],
+        )?;
         Ok(Library { conn })
     }
 
@@ -225,7 +238,9 @@ impl Library {
                                                  created = excluded.created,
                                                  -- a changed file needs its duration re-read
                                                  duration = CASE WHEN excluded.size != size OR excluded.modified != modified
-                                                                 THEN NULL ELSE duration END",
+                                                                 THEN NULL ELSE duration END,
+                                                 thumb = CASE WHEN excluded.size != size OR excluded.modified != modified
+                                                              THEN NULL ELSE thumb END",
             )?;
             for f in files {
                 let known = exists.exists(params![f.path])?;
@@ -388,7 +403,7 @@ impl Library {
             None => String::new(),
         };
         let sql = format!(
-            "SELECT v.id, v.path, v.folder_id, v.title, v.size, v.modified, v.watched, v.created, v.rating, v.duration
+            "SELECT v.id, v.path, v.folder_id, v.title, v.size, v.modified, v.watched, v.created, v.rating, v.duration, v.thumb
              FROM videos v {join} WHERE {where_sql} ORDER BY {order}{limit}"
         );
         let mut st = self.conn.prepare(&sql)?;
@@ -405,6 +420,7 @@ impl Library {
                     created: r.get(7)?,
                     rating: r.get::<_, i64>(8)? as f64 / 2.0,
                     duration: r.get(9)?,
+                    thumb: r.get::<_, Option<i64>>(10)? == Some(1),
                     tags: Vec::new(),
                     playlist_ids: Vec::new(),
                 })
@@ -478,6 +494,43 @@ impl Library {
         }
         self.conn.execute("UPDATE videos SET duration = ?1 WHERE id = ?2", params![seconds, video_id])?;
         Ok(())
+    }
+
+    /// Videos without a thumbnail attempt yet (oldest first).
+    pub fn videos_missing_thumb(&self, limit: usize) -> Result<Vec<(i64, String, Option<f64>)>> {
+        let mut st = self
+            .conn
+            .prepare("SELECT id, path, duration FROM videos WHERE thumb IS NULL ORDER BY id LIMIT ?1")?;
+        let rows = st.query_map(params![limit as i64], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    pub fn count_missing_thumb(&self) -> Result<usize> {
+        Ok(self.conn.query_row("SELECT COUNT(*) FROM videos WHERE thumb IS NULL", [], |r| r.get::<_, i64>(0))? as usize)
+    }
+
+    /// Store a thumbnail (JPEG bytes), or record a failed attempt with `None`
+    /// so it is not retried forever.
+    pub fn set_thumb(&self, video_id: i64, jpeg: Option<&[u8]>) -> Result<()> {
+        let tx = self.conn.unchecked_transaction()?;
+        match jpeg {
+            Some(data) => {
+                tx.execute("INSERT OR REPLACE INTO thumbnails(video_id, data) VALUES (?1, ?2)", params![video_id, data])?;
+            }
+            None => {
+                tx.execute("DELETE FROM thumbnails WHERE video_id = ?1", params![video_id])?;
+            }
+        }
+        tx.execute("UPDATE videos SET thumb = ?1 WHERE id = ?2", params![jpeg.is_some() as i64, video_id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_thumb(&self, video_id: i64) -> Result<Option<Vec<u8>>> {
+        Ok(self
+            .conn
+            .query_row("SELECT data FROM thumbnails WHERE video_id = ?1", params![video_id], |r| r.get(0))
+            .optional()?)
     }
 
     /// Set a star rating: 0 clears it, otherwise 0.5..=5.0 in steps of 0.5.
@@ -1083,5 +1136,37 @@ mod duration_tests {
         lib.scan_folder(f.id).unwrap();
         assert_eq!(lib.get_video(a).unwrap().duration, None);
         assert_eq!(lib.get_video(c).unwrap().duration, Some(60.0));
+    }
+}
+
+#[cfg(test)]
+mod thumb_tests {
+    use super::*;
+
+    #[test]
+    fn thumbnails_are_stored_replaced_and_deleted_with_the_video() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.mp4"), b"x").unwrap();
+        let mut lib = Library::open_in_memory().unwrap();
+        let folder = lib.add_folder(dir.path().to_str().unwrap()).unwrap();
+        lib.scan_folder(folder.id).unwrap();
+        let id = lib.list_videos(&VideoFilter::default()).unwrap()[0].id;
+        assert_eq!(lib.count_missing_thumb().unwrap(), 1);
+
+        lib.set_thumb(id, Some(&[1, 2, 3])).unwrap();
+        assert_eq!(lib.get_thumb(id).unwrap(), Some(vec![1, 2, 3]));
+        assert!(lib.get_video(id).unwrap().thumb);
+        assert_eq!(lib.count_missing_thumb().unwrap(), 0);
+
+        lib.set_thumb(id, None).unwrap(); // failed attempt drops the image but is not retried
+        assert_eq!(lib.get_thumb(id).unwrap(), None);
+        assert!(!lib.get_video(id).unwrap().thumb);
+        assert_eq!(lib.count_missing_thumb().unwrap(), 0);
+
+        lib.set_thumb(id, Some(&[9])).unwrap();
+        std::fs::remove_file(dir.path().join("a.mp4")).unwrap();
+        lib.scan_folder(folder.id).unwrap(); // video vanished -> thumbnail goes with it
+        let n: i64 = lib.conn.query_row("SELECT COUNT(*) FROM thumbnails", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 0);
     }
 }

@@ -45,6 +45,8 @@ pub struct Video {
     pub rating: f64,
     /// Seconds. None = not indexed yet; Some(0.0) = could not be determined.
     pub duration: Option<f64>,
+    /// True once a thumbnail image exists for this video.
+    pub thumb: bool,
     pub tags: Vec<VideoTag>,
     pub playlist_ids: Vec<i64>,
 }

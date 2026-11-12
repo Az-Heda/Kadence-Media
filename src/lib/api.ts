@@ -6,7 +6,7 @@ export interface Tag extends VideoTag { video_count: number }
 export interface Playlist { id: number; name: string; video_count: number }
 export interface Video {
   id: number; path: string; folder_id: number; title: string;
-  size: number; modified: number; created: number; watched: boolean; rating: number; duration: number | null;
+  size: number; modified: number; created: number; watched: boolean; rating: number; duration: number | null; thumb: boolean;
   tags: VideoTag[]; playlist_ids: number[];
 }
 export interface VideoPage { items: Video[]; total: number; page: number; page_size: number }

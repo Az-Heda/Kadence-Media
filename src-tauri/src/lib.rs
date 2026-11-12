@@ -2,6 +2,7 @@ mod commands;
 mod host;
 mod indexer;
 mod player;
+mod thumbs;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -72,6 +73,24 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // thumb://localhost/<video id> (http://thumb.localhost/<id> on Windows): JPEG from the database.
+        .register_uri_scheme_protocol("thumb", |ctx, request| {
+            let id = request.uri().path().trim_matches('/').parse::<i64>().ok();
+            let bytes = id.and_then(|id| {
+                let state = ctx.app_handle().state::<AppState>();
+                let lib = state.lib.lock().ok()?;
+                lib.get_thumb(id).ok().flatten()
+            });
+            let builder = tauri::http::Response::builder();
+            match bytes {
+                Some(b) => builder
+                    .header("Content-Type", "image/jpeg")
+                    .header("Cache-Control", "max-age=31536000")
+                    .body(b),
+                None => builder.status(404).body(Vec::new()),
+            }
+            .unwrap()
+        })
         .setup(|app| {
             let (lib, db_path) = open_library(app)?;
             app.manage(AppState {

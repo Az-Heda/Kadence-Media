@@ -66,7 +66,13 @@
           if (v) v.duration = e.payload.duration;
         }
       }),
-      listen<string>('indexing-error', (e) => toast(`Could not read video durations: ${e.payload}`, true)),
+      listen<{ id: number }>('video-thumb', (e) => {
+        for (const list of [app.videos, app.queueVideos]) {
+          const v = list.find((x) => x.id === e.payload.id);
+          if (v) v.thumb = true;
+        }
+      }),
+      listen<string>('indexing-error', (e) => toast(`Background indexing problem: ${e.payload}`, true)),
       listen<{ video_id: number | null; reason: string }>('player-ended', (e) => {
         // Auto-advance through the queue (playlist playback) when a video finishes.
         if (e.payload.reason === 'eof' && e.payload.video_id != null) {
