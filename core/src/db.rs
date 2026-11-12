@@ -81,6 +81,13 @@ pub const DEFAULT_SETTINGS: &[(&str, &str)] = &[
     ("grid_page_size", "60"),
     ("table_page_size", "20"),
     ("col_widths", ""),
+    ("table_columns", ""),
+    ("bg_color", ""),
+    ("surface_color", ""),
+    ("surface2_color", ""),
+    ("border_color", ""),
+    ("text_color", ""),
+    ("muted_color", ""),
 ];
 
 pub struct Library {
@@ -438,6 +445,19 @@ impl Library {
     }
 
     /// Videos whose duration has not been read yet (oldest first).
+    /// Mark every video matching `filter` (all pages) as watched, or, when they
+    /// already all are, as unwatched. Returns the new watched state.
+    pub fn toggle_watched_matching(&self, filter: &VideoFilter) -> Result<bool> {
+        let videos = self.list_videos(filter)?;
+        let watched = videos.iter().any(|v| !v.watched);
+        let tx = self.conn.unchecked_transaction()?;
+        for v in &videos {
+            tx.execute("UPDATE videos SET watched = ?1 WHERE id = ?2", params![watched as i64, v.id])?;
+        }
+        tx.commit()?;
+        Ok(watched)
+    }
+
     pub fn videos_missing_duration(&self, limit: usize) -> Result<Vec<(i64, String)>> {
         let mut st = self
             .conn
@@ -735,6 +755,18 @@ mod tests {
         assert!(!path.exists());
         assert!(lib.scan_folder(f.id).is_err());
         assert_eq!(lib.list_videos(&VideoFilter::default()).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn toggle_watched_matching_flips_all_then_back() {
+        let (_d, lib, _f) = setup();
+        let f = VideoFilter::default();
+        let first = lib.list_videos(&f).unwrap()[0].id;
+        lib.set_watched(first, true).unwrap(); // mixed state -> everything becomes watched
+        assert!(lib.toggle_watched_matching(&f).unwrap());
+        assert!(lib.list_videos(&f).unwrap().iter().all(|v| v.watched));
+        assert!(!lib.toggle_watched_matching(&f).unwrap());
+        assert!(lib.list_videos(&f).unwrap().iter().all(|v| !v.watched));
     }
 
     #[test]

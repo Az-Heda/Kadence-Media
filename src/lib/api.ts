@@ -30,7 +30,8 @@ export interface PlayerState {
 export type Settings = {
   volume_max: string; volume: string; primary_color: string; embed_video: string; mpv_path: string;
   library_view: string; default_folder_id: string; escape_action: string;
-  grid_page_size: string; table_page_size: string; col_widths: string;
+  grid_page_size: string; table_page_size: string; col_widths: string; table_columns: string;
+  bg_color: string; surface_color: string; surface2_color: string; border_color: string; text_color: string; muted_color: string;
 };
 
 export const api = {
@@ -53,6 +54,7 @@ export const api = {
   listVideosPage: (filter: VideoFilter, page: number, pageSize: number) =>
     invoke<VideoPage>('list_videos_page', { filter, page, pageSize }),
   indexingStatus: () => invoke<IndexingProgress>('indexing_status'),
+  toggleWatchedMatching: (filter: VideoFilter) => invoke<boolean>('toggle_watched_matching', { filter }),
   setRating: (id: number, rating: number) => invoke<void>('set_rating', { id, rating }),
   setWatched: (id: number, watched: boolean) => invoke<void>('set_watched', { id, watched }),
 

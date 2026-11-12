@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fmtDateTime, fmtSize, fmtTime, type SortBy, type Video } from '../lib/api';
   import { app, saveSetting, setRating, setSort, toggleWatched } from '../lib/store.svelte';
+  import { COLUMNS, DRAG_WIDTH, columnDef, resolveColumns } from '../lib/columns';
   import StarRating from './StarRating.svelte';
   import { dragHandlers, dropMark, type PlaylistCtx } from '../lib/dnd';
   import GripVertical from '@lucide/svelte/icons/grip-vertical';
@@ -17,12 +18,13 @@
   } = $props();
 
   const folderOf = (v: Video) => v.path.split(/[\\/]/).slice(0, -1).join('/') || '/';
-  const dateOf = (v: Video) => fmtDateTime(v.created);
+
+  // Visible columns, in the order chosen in Settings. The drag handle is extra and playlist-only.
+  const shown = $derived(resolveColumns(app.settings.table_columns).filter((c) => c.visible).map((c) => columnDef(c.id)));
+  const reorder = $derived(!!playlist?.canReorder);
 
   // ---- resizable columns (widths persisted in the `col_widths` setting as JSON) ----
-  const DEFAULTS: Record<string, number> = {
-    play: 90, title: 320, path: 220, size: 100, created: 170, duration: 100, rating: 120, tags: 220, watched: 80, actions: 90,
-  };
+  const DEFAULTS: Record<string, number> = Object.fromEntries(COLUMNS.map((c) => [c.id, c.width]));
   const MIN_W = 50;
   function parseWidths(raw: string): Record<string, number> {
     try {
@@ -34,7 +36,7 @@
   let resizing = $state(false);
   // Follow external changes (e.g. "Reset column widths" in Settings).
   $effect(() => { if (!resizing) widths = { ...DEFAULTS, ...parseWidths(app.settings.col_widths) }; });
-  const totalWidth = $derived(Object.values(widths).reduce((a, b) => a + b, 0));
+  const totalWidth = $derived(shown.reduce((a, c) => a + widths[c.id], reorder ? DRAG_WIDTH : 0));
 
   function persist() {
     const custom = Object.fromEntries(Object.entries(widths).filter(([k, v]) => v !== DEFAULTS[k]));
@@ -70,60 +72,73 @@
 <div class="wrap card">
   <table style:width="{totalWidth}px">
     <colgroup>
-      {#each Object.keys(DEFAULTS) as k}<col style:width="{widths[k]}px" />{/each}
+      {#if reorder}<col style:width="{DRAG_WIDTH}px" />{/if}
+      {#each shown as c (c.id)}<col style:width="{widths[c.id]}px" />{/each}
     </colgroup>
     <thead>
       <tr>
-        <th>{@render grip('play')}</th>
-        {#each [['title', 'Title', ''], ['path', 'Folder', ''], ['size', 'Size', 'num'], ['created', 'Created', ''], ['duration', 'Duration', 'num'], ['rating', 'Rating', '']] as [key, label, cls]}
-          <th class={cls}>
-            <button class="sort" class:active={app.filter.sort_by === key} onclick={() => setSort(key as SortBy)}>
-              {label}
-              {#if app.filter.sort_by === key}
-                {#if app.filter.sort_desc}<ArrowDown size={13} />{:else}<ArrowUp size={13} />{/if}
-              {/if}
-            </button>
-            {@render grip(key)}
+        {#if reorder}<th></th>{/if}
+        {#each shown as c (c.id)}
+          <th class:num={c.num}>
+            {#if c.sort}
+              <button class="sort" class:active={app.filter.sort_by === c.sort} onclick={() => setSort(c.sort as SortBy)}>
+                {c.label}
+                {#if app.filter.sort_by === c.sort}
+                  {#if app.filter.sort_desc}<ArrowDown size={13} />{:else}<ArrowUp size={13} />{/if}
+                {/if}
+              </button>
+            {:else}{c.label}{/if}
+            {@render grip(c.id)}
           </th>
         {/each}
-        <th>Tags{@render grip('tags')}</th>
-        <th>Watched{@render grip('watched')}</th>
-        <th>{@render grip('actions')}</th>
       </tr>
     </thead>
     <tbody>
       {#each videos as v (v.id)}
         <tr class="{dropMark(v.id)}" class:watched={v.watched} ondblclick={() => onplay(v)}
-          draggable={playlist?.canReorder ? 'true' : undefined}
-          {...playlist?.canReorder ? dragHandlers(v.id, 'y', playlist.onmove) : {}}>
-          <td class="cell">
-            {#if playlist?.canReorder}<span class="grip" title="Drag to reorder"><GripVertical size={15} /></span>{/if}
-            <button class="ghost" onclick={() => onplay(v)} title="Play"><Play size={15} fill="currentColor" /></button>
-          </td>
-          <td class="title cell" title={v.path}>{v.title}</td>
-          <td class="muted cell" title={folderOf(v)}>{folderOf(v)}</td>
-          <td class="num muted cell">{fmtSize(v.size)}</td>
-          <td class="muted cell">{dateOf(v)}</td>
-          <td class="num muted cell">{v.duration && v.duration > 0 ? fmtTime(v.duration) : '—'}</td>
-          <td class="cell"><StarRating value={v.rating} size={14} onchange={(r) => setRating(v, r)} /></td>
-          <td>
-            <div class="tags">
-              {#each v.tags as t (t.id)}
-                <span class="chip"><span class="dot" style:background={t.color}></span>{t.name}</span>
-              {/each}
-            </div>
-          </td>
-          <td class="cell">
-            <button class="ghost" onclick={() => toggleWatched(v)} title="Toggle watched">
-              {#if v.watched}<Eye size={15} />{:else}<EyeOff size={15} />{/if}
-            </button>
-          </td>
-          <td class="cell">
-            {#if playlist}
-              <button class="ghost danger" onclick={() => playlist.onremove(v.id)} title="Remove from this playlist"><ListX size={15} /></button>
+          draggable={reorder ? 'true' : undefined}
+          {...reorder ? dragHandlers(v.id, 'y', playlist!.onmove) : {}}>
+          {#if reorder}
+            <td class="cell"><span class="grip" title="Drag to reorder"><GripVertical size={15} /></span></td>
+          {/if}
+          {#each shown as c (c.id)}
+            {#if c.id === 'play'}
+              <td class="cell"><button class="ghost" onclick={() => onplay(v)} title="Play"><Play size={15} fill="currentColor" /></button></td>
+            {:else if c.id === 'watched'}
+              <td class="cell">
+                <button class="ghost" onclick={() => toggleWatched(v)} title="Toggle watched">
+                  {#if v.watched}<Eye size={15} />{:else}<EyeOff size={15} />{/if}
+                </button>
+              </td>
+            {:else if c.id === 'rating'}
+              <td class="cell"><StarRating value={v.rating} size={14} onchange={(r) => setRating(v, r)} /></td>
+            {:else if c.id === 'title'}
+              <td class="title cell" title={v.path}>{v.title}</td>
+            {:else if c.id === 'created'}
+              <td class="muted cell">{fmtDateTime(v.created)}</td>
+            {:else if c.id === 'duration'}
+              <td class="num muted cell">{v.duration && v.duration > 0 ? fmtTime(v.duration) : '—'}</td>
+            {:else if c.id === 'size'}
+              <td class="num muted cell">{fmtSize(v.size)}</td>
+            {:else if c.id === 'path'}
+              <td class="muted cell" title={folderOf(v)}>{folderOf(v)}</td>
+            {:else if c.id === 'tags'}
+              <td>
+                <div class="tags">
+                  {#each v.tags as t (t.id)}
+                    <span class="chip"><span class="dot" style:background={t.color}></span>{t.name}</span>
+                  {/each}
+                </div>
+              </td>
+            {:else if c.id === 'actions'}
+              <td class="cell">
+                {#if playlist}
+                  <button class="ghost danger" onclick={() => playlist.onremove(v.id)} title="Remove from this playlist"><ListX size={15} /></button>
+                {/if}
+                <button class="ghost" onclick={() => onmanage(v)} title="Tags & playlists"><Tag size={15} /></button>
+              </td>
             {/if}
-            <button class="ghost" onclick={() => onmanage(v)} title="Tags & playlists"><Tag size={15} /></button>
-          </td>
+          {/each}
         </tr>
       {/each}
     </tbody>

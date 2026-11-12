@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, fmtTime } from '../lib/api';
+  import { api, fmtDateTime, fmtTime } from '../lib/api';
   import { app, currentVideo, guarded, playNext, playQueue, queueIndex, stopPlayback, togglePause, volumeMax } from '../lib/store.svelte';
   import CircleX from '@lucide/svelte/icons/circle-x';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
@@ -17,6 +17,7 @@
   import ListVideo from '@lucide/svelte/icons/list-video';
   import X from '@lucide/svelte/icons/x';
   import Gauge from '@lucide/svelte/icons/gauge';
+  import Thumb from '../components/Thumb.svelte';
   import Check from '@lucide/svelte/icons/check';
 
   const video = $derived(currentVideo());
@@ -167,7 +168,11 @@
           {@const current = v.id === app.player.video_id}
           <button class="item" class:current onclick={() => playQueue(app.queueVideos, i, app.queueTitle)}>
             <span class="n">{#if current}<Play size={13} fill="currentColor" />{:else}{i + 1}{/if}</span>
-            <span class="t">{v.title}</span>
+            <span class="pthumb"><Thumb video={v} size={20} /></span>
+            <span class="meta">
+              <span class="t">{v.title}</span>
+              <span class="muted small">{fmtDateTime(v.modified)}{#if v.duration && v.duration > 0} · {fmtTime(v.duration)}{/if}</span>
+            </span>
           </button>
         {/each}
       </div>
@@ -237,7 +242,7 @@
   .chk { width: 16px; display: inline-flex; }
 
   .panel {
-    position: absolute; right: 16px; top: 70px; bottom: 120px; width: 340px; display: flex; flex-direction: column;
+    position: absolute; right: 16px; top: 70px; bottom: 120px; width: 520px; max-width: calc(100vw - 32px); display: flex; flex-direction: column;
     background: #101014f0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px #000a;
   }
   .panel header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
@@ -249,5 +254,8 @@
   .item.current { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
   .n { width: 22px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; display: inline-flex; justify-content: center; }
   .item.current .n { color: var(--primary); }
+  .pthumb { width: 150px; flex-shrink: 0; border-radius: 6px; overflow: hidden; }
+  .meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  .item { align-items: center; }
   .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

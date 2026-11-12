@@ -20,7 +20,10 @@
     await refreshAll();
   }
 
+  let confirming = $state<{ id: number; path: string; count: number } | null>(null);
+
   async function remove(id: number) {
+    confirming = null;
     await guarded(() => api.removeFolder(id));
     await refreshAll();
   }
@@ -61,14 +64,40 @@
         title={f.is_default ? 'Stop using as default' : 'Show only this folder in the library by default'}>
         <Star size={15} fill={f.is_default ? 'currentColor' : 'none'} /> {f.is_default ? 'Default' : 'Set as default'}
       </button>
-      <button class="danger" onclick={() => remove(f.id)}><Trash2 size={15} /> Remove</button>
+      <button class="danger" onclick={() => (confirming = { id: f.id, path: f.path, count: f.video_count })}><Trash2 size={15} /> Remove</button>
     </div>
   {:else}
     <div class="card empty">No folders yet. Click <b>Add folder</b> to pick one.</div>
   {/each}
 </div>
 
+{#if confirming}
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="backdrop" onclick={() => (confirming = null)}>
+    <div class="dialog card" role="alertdialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+      <h1>Remove this folder?</h1>
+      <div class="path">{confirming.path}</div>
+      <p>
+        Removing the folder deletes its {confirming.count} video{confirming.count === 1 ? '' : 's'} from the library,
+        and <b>all the data attached to them will be permanently lost</b>: watched status, ratings, tags and playlist memberships.
+        Your files on disk are not touched.
+      </p>
+      <div class="row buttons">
+        <span class="grow"></span>
+        <button onclick={() => (confirming = null)}>Cancel</button>
+        <button class="primary danger-solid" onclick={() => remove(confirming!.id)}><Trash2 size={15} /> Remove folder</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
+  .backdrop { position: fixed; inset: 0; background: #000a; display: grid; place-items: center; z-index: 40; }
+  .dialog { width: min(480px, 92vw); }
+  .dialog p { line-height: 1.5; }
+  .buttons { margin-top: 16px; }
+  button.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+  button.danger-solid:hover { background: var(--danger); filter: brightness(1.15); }
   .head { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
   .list { display: flex; flex-direction: column; gap: 10px; }
   .ico { display: inline-flex; color: var(--primary); }

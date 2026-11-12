@@ -7,7 +7,7 @@ export const DEFAULT_PRIMARY = '#d4a017';
 export const app = $state({
   page: 'library' as Page,
   playerView: false,
-  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '' } as Settings,
+  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '' } as Settings,
   folders: [] as Folder[],
   tags: [] as Tag[],
   playlists: [] as Playlist[],
@@ -69,9 +69,24 @@ export async function setDefaultFolder(id: number | null) {
 
 export const volumeMax = () => Math.max(100, Number(app.settings.volume_max) || 300);
 
+/** Customisable theme colors: setting key -> CSS variable, label and default (from app.css). */
+export const THEME_COLORS: { key: keyof Settings; css: string; label: string; hint: string; fallback: string }[] = [
+  { key: 'bg_color', css: '--bg', label: 'Background', hint: 'Window background', fallback: '#0d0d10' },
+  { key: 'surface_color', css: '--surface', label: 'Cards', hint: 'Cards, table and inputs', fallback: '#16161b' },
+  { key: 'surface2_color', css: '--surface-2', label: 'Buttons', hint: 'Buttons and hover backgrounds', fallback: '#1e1e25' },
+  { key: 'border_color', css: '--border', label: 'Borders', hint: 'Lines and outlines', fallback: '#2b2b35' },
+  { key: 'text_color', css: '--text', label: 'Text', hint: 'Main text', fallback: '#ececf1' },
+  { key: 'muted_color', css: '--muted', label: 'Secondary text', hint: 'Hints and labels', fallback: '#9a9aaa' },
+];
+
 export function applyTheme() {
   const root = document.documentElement;
   root.style.setProperty('--primary', app.settings.primary_color || DEFAULT_PRIMARY);
+  // An empty setting means "use the stylesheet default".
+  for (const c of THEME_COLORS) {
+    const v = app.settings[c.key];
+    if (v) root.style.setProperty(c.css, v); else root.style.removeProperty(c.css);
+  }
 }
 
 export async function loadSettings() {
@@ -83,7 +98,7 @@ export async function saveSetting(key: keyof Settings, value: string) {
   await guarded(async () => {
     await api.setSetting(key, value);
     app.settings[key] = value;
-    if (key === 'primary_color') applyTheme();
+    if (key === 'primary_color' || THEME_COLORS.some((c) => c.key === key)) applyTheme();
   });
 }
 
@@ -211,6 +226,15 @@ export async function removeFromPlaylist(playlistId: number, videoId: number) {
   await guarded(async () => {
     await api.removeFromPlaylist(playlistId, videoId);
     await refreshAll();
+  });
+}
+
+/** Watch (or, if all already watched, unwatch) every video matching the current library filter. */
+export async function toggleWatchedAll() {
+  await guarded(async () => {
+    const nowWatched = await api.toggleWatchedMatching(libraryFilter());
+    toast(nowWatched ? 'Marked all as watched' : 'Marked all as unwatched');
+    await loadVideos();
   });
 }
 

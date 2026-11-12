@@ -137,6 +137,12 @@ pub fn set_rating(state: State<'_, AppState>, id: i64, rating: f64) -> Res<()> {
     lib!(state).set_rating(id, rating).map_err(e)
 }
 
+/// Watch/unwatch everything matching the filter (all pages). Returns the new state.
+#[tauri::command]
+pub fn toggle_watched_matching(state: State<'_, AppState>, filter: Option<VideoFilter>) -> Res<bool> {
+    lib!(state).toggle_watched_matching(&filter.unwrap_or_default()).map_err(e)
+}
+
 #[tauri::command]
 pub fn set_watched(state: State<'_, AppState>, id: i64, watched: bool) -> Res<()> {
     lib!(state).set_watched(id, watched).map_err(e)

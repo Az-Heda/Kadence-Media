@@ -1,12 +1,13 @@
 <script lang="ts">
   import { api, type Video } from '../lib/api';
-  import { app, defaultFolderId, guarded, libraryFilter, loadVideos, moveInPlaylist, pageSize, playQueue, refreshAll, removeFromPlaylist, setPage, toast } from '../lib/store.svelte';
+  import { app, defaultFolderId, guarded, libraryFilter, loadVideos, moveInPlaylist, pageSize, playQueue, refreshAll, removeFromPlaylist, setPage, toast, toggleWatchedAll } from '../lib/store.svelte';
   import type { PlaylistCtx } from '../lib/dnd';
   import type { SortBy } from '../lib/api';
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
   import ArrowDown from '@lucide/svelte/icons/arrow-down';
   import VideoTable from '../components/VideoTable.svelte';
   import Play from '@lucide/svelte/icons/play';
+  import CheckCheck from '@lucide/svelte/icons/check-check';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import X from '@lucide/svelte/icons/x';
   import ChevronLeft from '@lucide/svelte/icons/chevron-left';
@@ -105,6 +106,12 @@
     <h1>Library</h1>
     <div class="muted">{app.paging.total} video{app.paging.total === 1 ? '' : 's'}{filtered ? ' (filtered)' : ''}</div>
   </div>
+  {#if app.filter.tag_ids.length > 0 || app.filter.playlist_id !== null}
+    <button onclick={toggleWatchedAll} disabled={app.paging.total === 0}
+      title="Mark every video matching this filter as watched; press again to mark them all unwatched">
+      <CheckCheck size={15} /> Toggle watched
+    </button>
+  {/if}
   <button onclick={rescan} disabled={scanning}><RefreshCw size={15} /> {scanning ? 'Scanning…' : 'Rescan'}</button>
   <button class="primary" disabled={app.paging.total === 0} onclick={() => playFiltered()}><Play size={15} fill="currentColor" /> Play all</button>
 </div>
