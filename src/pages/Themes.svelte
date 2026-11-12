@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app, applySavedTheme, currentColors, DEFAULT_PRIMARY, deleteTheme, saveCurrentTheme, saveSetting, savedThemes, THEME_COLORS, type SavedTheme } from '../lib/store.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
   import Save from '@lucide/svelte/icons/save';
   import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -12,6 +13,7 @@
   }
 
   let name = $state('');
+  let deleting = $state<string | null>(null);
   const themes = $derived(savedThemes());
   async function save() {
     const n = name.trim();
@@ -44,7 +46,7 @@
         <span class="sw">{#each swatches(t) as c}<i style:background={c}></i>{/each}</span>
         <span class="grow tname">{t.name}{#if isActive(t)}<Check size={14} />{/if}</span>
         <button onclick={() => applySavedTheme(t)} disabled={isActive(t)}>Apply</button>
-        <button class="ghost danger" onclick={() => deleteTheme(t.name)} title="Delete theme"><Trash2 size={15} /></button>
+        <button class="ghost danger" onclick={() => (deleting = t.name)} title="Delete theme"><Trash2 size={15} /></button>
       </div>
     {:else}
       <div class="muted">No saved themes yet.</div>
@@ -87,6 +89,12 @@
   </div>
 </section>
 
+
+{#if deleting}
+  <ConfirmDialog title="Delete this theme?" onconfirm={async () => { const n = deleting!; deleting = null; await deleteTheme(n); }} oncancel={() => (deleting = null)}>
+    <p>The saved theme <b>{deleting}</b> will be deleted. Your current colors are not changed. This cannot be undone.</p>
+  </ConfirmDialog>
+{/if}
 
 <style>
   .intro { margin-bottom: 18px; }

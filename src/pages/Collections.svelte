@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '../lib/api';
   import { app, guarded, refreshAll } from '../lib/store.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import X from '@lucide/svelte/icons/x';
   import Check from '@lucide/svelte/icons/check';
   import Pencil from '@lucide/svelte/icons/pencil';
@@ -25,6 +26,14 @@
     await guarded(() => api.updateTag(id, name, color));
     await refreshAll();
   }
+  let pending = $state<{ kind: 'tag' | 'playlist'; id: number; name: string; count: number } | null>(null);
+  async function confirmDelete() {
+    const p = pending;
+    pending = null;
+    if (!p) return;
+    if (p.kind === 'tag') await delTag(p.id); else await delPl(p.id);
+  }
+
   async function delTag(id: number) {
     app.filter.tag_ids = app.filter.tag_ids.filter((t) => t !== id);
     await guarded(() => api.deleteTag(id));
@@ -92,7 +101,7 @@
         <input type="text" class="grow" value={t.name}
           onchange={(e) => editTag(t.id, e.currentTarget.value, t.color)} />
         <button class="ghost" title="Show in library" onclick={() => filterByTag(t.id)}>{t.video_count} <ChevronRight size={14} /></button>
-        <button class="danger ghost" onclick={() => delTag(t.id)} title="Delete"><X size={15} /></button>
+        <button class="danger ghost" onclick={() => (pending = { kind: 'tag', id: t.id, name: t.name, count: t.video_count })} title="Delete"><X size={15} /></button>
       </div>
     {:else}<div class="muted">No tags yet.</div>{/each}
   </section>
@@ -115,12 +124,23 @@
             {p.name} <span class="muted">· {p.video_count}</span>
           </button>
           <button class="ghost" title="Rename" onclick={() => startRename(p.id, p.name)}><Pencil size={15} /></button>
-          <button class="danger ghost" onclick={() => delPl(p.id)} title="Delete"><Trash2 size={15} /></button>
+          <button class="danger ghost" onclick={() => (pending = { kind: 'playlist', id: p.id, name: p.name, count: p.video_count })} title="Delete"><Trash2 size={15} /></button>
         {/if}
       </div>
     {:else}<div class="muted">No playlists yet.</div>{/each}
   </section>
 </div>
+
+{#if pending}
+  <ConfirmDialog title="Delete this {pending.kind}?" onconfirm={confirmDelete} oncancel={() => (pending = null)}>
+    <p>
+      <b>{pending.name}</b> will be deleted
+      {#if pending.kind === 'tag'}and removed from its {pending.count} video{pending.count === 1 ? '' : 's'}.
+      {:else}({pending.count} video{pending.count === 1 ? '' : 's'}); the videos themselves stay in the library.{/if}
+      This cannot be undone.
+    </p>
+  </ConfirmDialog>
+{/if}
 
 <style>
   .intro { margin-bottom: 18px; }

@@ -2,6 +2,7 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { api } from '../lib/api';
   import { app, guarded, refreshAll, setDefaultFolder, toast } from '../lib/store.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import FolderOpen from '@lucide/svelte/icons/folder-open';
   import FolderPlus from '@lucide/svelte/icons/folder-plus';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -72,32 +73,17 @@
 </div>
 
 {#if confirming}
-  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="backdrop" onclick={() => (confirming = null)}>
-    <div class="dialog card" role="alertdialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-      <h1>Remove this folder?</h1>
-      <div class="path">{confirming.path}</div>
-      <p>
-        Removing the folder deletes its {confirming.count} video{confirming.count === 1 ? '' : 's'} from the library,
-        and <b>all the data attached to them will be permanently lost</b>: watched status, ratings, tags and playlist memberships.
-        Your files on disk are not touched.
-      </p>
-      <div class="row buttons">
-        <span class="grow"></span>
-        <button onclick={() => (confirming = null)}>Cancel</button>
-        <button class="primary danger-solid" onclick={() => remove(confirming!.id)}><Trash2 size={15} /> Remove folder</button>
-      </div>
-    </div>
-  </div>
+  <ConfirmDialog title="Remove this folder?" confirmLabel="Remove folder" onconfirm={() => remove(confirming!.id)} oncancel={() => (confirming = null)}>
+    <div class="path">{confirming.path}</div>
+    <p>
+      Removing the folder deletes its {confirming.count} video{confirming.count === 1 ? '' : 's'} from the library,
+      and <b>all the data attached to them will be permanently lost</b>: watched status, ratings, tags and playlist memberships.
+      Your files on disk are not touched.
+    </p>
+  </ConfirmDialog>
 {/if}
 
 <style>
-  .backdrop { position: fixed; inset: 0; background: #000a; display: grid; place-items: center; z-index: 40; }
-  .dialog { width: min(480px, 92vw); }
-  .dialog p { line-height: 1.5; }
-  .buttons { margin-top: 16px; }
-  button.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
-  button.danger-solid:hover { background: var(--danger); filter: brightness(1.15); }
   .head { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
   .list { display: flex; flex-direction: column; gap: 10px; }
   .ico { display: inline-flex; color: var(--primary); }
