@@ -36,9 +36,13 @@
   let listEl = $state<HTMLElement>();
   const showPanel = $derived(panelOpen && app.queueTitle !== null);
 
+  // $derived only notifies when the id really changes. Reading app.player.video_id directly
+  // re-ran the effect on every position update (the whole player object is replaced ~4x/s),
+  // snapping the list back to the playing item and making it impossible to scroll.
+  const playingId = $derived(app.player.video_id);
   $effect(() => {
     // Keep the playing item in view when the panel opens or the video changes.
-    void [showPanel, app.player.video_id];
+    void [showPanel, playingId];
     queueMicrotask(() => listEl?.querySelector('.current')?.scrollIntoView({ block: 'nearest' }));
   });
 

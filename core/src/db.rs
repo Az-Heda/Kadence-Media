@@ -81,6 +81,7 @@ pub const DEFAULT_SETTINGS: &[(&str, &str)] = &[
     ("grid_page_size", "60"),
     ("table_page_size", "20"),
     ("col_widths", ""),
+    ("saved_themes", ""),
     ("table_columns", ""),
     ("bg_color", ""),
     ("surface_color", ""),

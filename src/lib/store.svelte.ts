@@ -1,13 +1,13 @@
 import { api, errMsg, type SortBy, type VideoFilter, type Folder, type Playlist, type PlayerState, type Settings, type Tag, type Video } from './api';
 
-export type Page = 'library' | 'folders' | 'collections' | 'rules' | 'settings';
+export type Page = 'library' | 'folders' | 'collections' | 'rules' | 'themes' | 'settings';
 
 export const DEFAULT_PRIMARY = '#d4a017';
 
 export const app = $state({
   page: 'library' as Page,
   playerView: false,
-  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '' } as Settings,
+  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '' } as Settings,
   folders: [] as Folder[],
   tags: [] as Tag[],
   playlists: [] as Playlist[],
@@ -78,6 +78,38 @@ export const THEME_COLORS: { key: keyof Settings; css: string; label: string; hi
   { key: 'text_color', css: '--text', label: 'Text', hint: 'Main text', fallback: '#ececf1' },
   { key: 'muted_color', css: '--muted', label: 'Secondary text', hint: 'Hints and labels', fallback: '#9a9aaa' },
 ];
+
+/** A named set of colors. Empty strings mean "default". */
+export interface SavedTheme { name: string; colors: Partial<Record<keyof Settings, string>> }
+const THEME_KEYS: (keyof Settings)[] = ['primary_color', ...THEME_COLORS.map((c) => c.key)];
+
+export function savedThemes(): SavedTheme[] {
+  try {
+    const v = JSON.parse(app.settings.saved_themes || '[]');
+    return Array.isArray(v) ? v.filter((t) => t && typeof t.name === 'string' && t.colors) : [];
+  } catch { return []; }
+}
+
+export const currentColors = (): SavedTheme['colors'] => Object.fromEntries(THEME_KEYS.map((k) => [k, app.settings[k]]));
+
+/** Save the current colors under `name` (replacing a theme with the same name). */
+export async function saveCurrentTheme(name: string) {
+  const list = savedThemes().filter((t) => t.name.toLowerCase() !== name.toLowerCase());
+  list.push({ name, colors: currentColors() });
+  await saveSetting('saved_themes', JSON.stringify(list));
+}
+
+export async function deleteTheme(name: string) {
+  await saveSetting('saved_themes', JSON.stringify(savedThemes().filter((t) => t.name !== name)));
+}
+
+export async function applySavedTheme(t: SavedTheme) {
+  for (const k of THEME_KEYS) {
+    const v = t.colors[k] ?? '';
+    if (k === 'primary_color' && !v) { await saveSetting(k, DEFAULT_PRIMARY); continue; }
+    if (app.settings[k] !== v) await saveSetting(k, v);
+  }
+}
 
 export function applyTheme() {
   const root = document.documentElement;

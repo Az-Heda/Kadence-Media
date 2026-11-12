@@ -30,7 +30,7 @@ export interface PlayerState {
 export type Settings = {
   volume_max: string; volume: string; primary_color: string; embed_video: string; mpv_path: string;
   library_view: string; default_folder_id: string; escape_action: string;
-  grid_page_size: string; table_page_size: string; col_widths: string; table_columns: string;
+  grid_page_size: string; table_page_size: string; col_widths: string; table_columns: string; saved_themes: string;
   bg_color: string; surface_color: string; surface2_color: string; border_color: string; text_color: string; muted_color: string;
 };
 

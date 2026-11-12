@@ -1,14 +1,12 @@
 <script lang="ts">
   import { api } from '../lib/api';
-  import { app, DEFAULT_PRIMARY, guarded, saveSetting, THEME_COLORS, toast, volumeMax } from '../lib/store.svelte';
+  import { app, guarded, saveSetting, toast, volumeMax } from '../lib/store.svelte';
   import LayoutGrid from '@lucide/svelte/icons/layout-grid';
   import Table2 from '@lucide/svelte/icons/table-2';
-  import ArrowUp from '@lucide/svelte/icons/arrow-up';
-  import ArrowDown from '@lucide/svelte/icons/arrow-down';
+  import GripVertical from '@lucide/svelte/icons/grip-vertical';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
   import { columnDef, resolveColumns } from '../lib/columns';
-
-  const presets = ['#d4a017', '#e8b923', '#f2994a', '#e5484d', '#3dd68c', '#4cc2ff', '#a78bfa', '#f472b6'];
+  import { dragHandlers, dropMark } from '../lib/dnd';
 
   let volMax = $state(Number(app.settings.volume_max) || 300);
   let mpvPath = $state(app.settings.mpv_path);
@@ -29,11 +27,12 @@
   function saveColumns(list: { id: string; visible: boolean }[]) {
     saveSetting('table_columns', JSON.stringify(list));
   }
-  function moveColumn(i: number, delta: number) {
+  /** Drag-and-drop: put row `from` before/after row `target` (rows are identified by their index). */
+  function moveColumn(from: number, target: number, after: boolean) {
     const list = columns.map((c) => ({ ...c }));
-    const j = i + delta;
-    if (j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]];
+    const [item] = list.splice(from, 1);
+    const t = target > from ? target - 1 : target;
+    list.splice(after ? t + 1 : t, 0, item);
     saveColumns(list);
   }
   function setColumnVisible(i: number, visible: boolean) {
@@ -42,11 +41,6 @@
     if (!visible && list.filter((c) => c.visible).length <= 1) return;
     list[i].visible = visible;
     saveColumns(list);
-  }
-
-  const themeCustom = $derived(THEME_COLORS.some((c) => app.settings[c.key] !== ''));
-  async function resetTheme() {
-    for (const c of THEME_COLORS) if (app.settings[c.key] !== '') await saveSetting(c.key, '');
   }
 
   async function commitVolMax() {
@@ -120,14 +114,13 @@
 {#if app.settings.library_view === 'table'}
   <section class="card">
     <h2>Table columns</h2>
-    <div class="muted hint">Choose which columns the library table shows and in which order. The drag handle used to reorder playlists appears automatically.</div>
+    <div class="muted hint">Choose which columns the library table shows; drag the rows to change their order. The drag handle used to reorder playlists appears automatically.</div>
     <div class="cols">
       {#each columns as c, i (c.id)}
-        <div class="colrow">
+        <div class="colrow {dropMark(i)}" draggable="true" {...dragHandlers(i, 'y', moveColumn)}>
+          <span class="handle" title="Drag to reorder"><GripVertical size={16} /></span>
           <input type="checkbox" checked={c.visible} onchange={(e) => setColumnVisible(i, e.currentTarget.checked)} aria-label="Show {columnDef(c.id).name}" />
           <span class="grow" class:off={!c.visible}>{columnDef(c.id).name}</span>
-          <button class="ghost" disabled={i === 0} onclick={() => moveColumn(i, -1)} title="Move up"><ArrowUp size={15} /></button>
-          <button class="ghost" disabled={i === columns.length - 1} onclick={() => moveColumn(i, 1)} title="Move down"><ArrowDown size={15} /></button>
         </div>
       {/each}
     </div>
@@ -136,41 +129,6 @@
     </div>
   </section>
 {/if}
-
-<section class="card">
-  <h2>Theme</h2>
-  <div class="field">
-    <div class="grow">
-      <div class="label">Primary color</div>
-      <div class="muted">Accent used for buttons, highlights and the player.</div>
-    </div>
-    <div class="row">
-      {#each presets as c}
-        <button class="swatch" class:on={app.settings.primary_color === c} style:background={c}
-          aria-label={c} onclick={() => saveSetting('primary_color', c)}></button>
-      {/each}
-      <input type="color" value={app.settings.primary_color}
-        onchange={(e) => saveSetting('primary_color', e.currentTarget.value)} />
-      <button class="ghost" onclick={() => saveSetting('primary_color', DEFAULT_PRIMARY)}>Reset</button>
-    </div>
-  </div>
-  {#each THEME_COLORS as c (c.key)}
-    <div class="field">
-      <div class="grow">
-        <div class="label">{c.label}</div>
-        <div class="muted">{c.hint}</div>
-      </div>
-      <div class="row">
-        <input type="color" value={app.settings[c.key] || c.fallback}
-          onchange={(e) => saveSetting(c.key, e.currentTarget.value)} />
-        <button class="ghost" disabled={app.settings[c.key] === ''} onclick={() => saveSetting(c.key, '')}>Reset</button>
-      </div>
-    </div>
-  {/each}
-  <div class="row" style="margin-top:6px">
-    <button disabled={!themeCustom} onclick={resetTheme}><RotateCcw size={14} /> Reset all colors</button>
-  </div>
-</section>
 
 <section class="card">
   <h2>Player</h2>
@@ -226,14 +184,15 @@
   .cols { display: flex; flex-direction: column; margin-top: 8px; }
   .colrow { display: flex; align-items: center; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--border); }
   .colrow:last-child { border-bottom: 0; }
+  .handle { display: inline-flex; color: var(--muted); cursor: grab; }
+  .colrow.drop-before { box-shadow: inset 0 3px 0 var(--primary); }
+  .colrow.drop-after { box-shadow: inset 0 -3px 0 var(--primary); }
   .off { color: var(--muted); text-decoration: line-through; }
   .intro { margin-bottom: 18px; }
   section { margin-bottom: 16px; }
   .field { display: flex; align-items: center; gap: 18px; padding: 8px 0; }
   .label { font-weight: 600; margin-bottom: 2px; }
   .hint { font-size: 12px; margin-top: 4px; }
-  .swatch { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid transparent; }
-  .swatch.on { border-color: #fff; }
   input[type='checkbox'] { width: 20px; height: 20px; accent-color: var(--primary); }
   kbd { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; font-size: 12px; }
   code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }

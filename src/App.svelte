@@ -6,6 +6,7 @@
   import Library from './pages/Library.svelte';
   import Folders from './pages/Folders.svelte';
   import Collections from './pages/Collections.svelte';
+  import Themes from './pages/Themes.svelte';
   import SettingsPage from './pages/Settings.svelte';
   import Player from './pages/Player.svelte';
   import Rules from './pages/Rules.svelte';
@@ -15,6 +16,7 @@
   import Tags from '@lucide/svelte/icons/tags';
   import WandSparkles from '@lucide/svelte/icons/wand-sparkles';
   import Settings2 from '@lucide/svelte/icons/settings';
+  import Palette from '@lucide/svelte/icons/palette';
   import Clapperboard from '@lucide/svelte/icons/clapperboard';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
@@ -25,6 +27,10 @@
     { id: 'folders', label: 'Folders', icon: FolderOpen },
     { id: 'collections', label: 'Tags & Playlists', icon: Tags },
     { id: 'rules', label: 'Automatic Rules', icon: WandSparkles },
+  ];
+  // Pinned to the bottom of the sidebar.
+  const bottomPages: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
+    { id: 'themes', label: 'Themes', icon: Palette },
     { id: 'settings', label: 'Settings', icon: Settings2 },
   ];
 
@@ -85,12 +91,18 @@
             <p.icon size={18} />{p.label}
           </button>
         {/each}
+        <span class="spacer"></span>
         {#if app.indexing.running}
           <div class="indexing" title="Reading video durations in the background">
             <span class="spin"><LoaderCircle size={15} /></span>
             Reading durations {app.indexing.done}/{app.indexing.total}
           </div>
         {/if}
+        {#each bottomPages as p}
+          <button class="nav ghost" class:active={app.page === p.id} onclick={() => (app.page = p.id)}>
+            <p.icon size={18} />{p.label}
+          </button>
+        {/each}
       </nav>
       <div class="content">
         <main>
@@ -98,6 +110,7 @@
           {:else if app.page === 'folders'}<Folders />
           {:else if app.page === 'collections'}<Collections />
           {:else if app.page === 'rules'}<Rules />
+          {:else if app.page === 'themes'}<Themes />
           {:else}<SettingsPage />{/if}
         </main>
         {#if app.player.video_id != null}<MiniPlayer />{/if}
@@ -117,7 +130,8 @@
   .logo { color: var(--primary); display: inline-flex; }
   .nav { justify-content: flex-start; text-align: left; display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
   .nav.active { background: var(--primary-soft); color: var(--primary); border-color: transparent; }
-  .indexing { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 12px; color: var(--muted); }
+    .spacer { flex: 1; }
+  .indexing { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 12px; color: var(--muted); }
   .spin { display: inline-flex; animation: spin 1s linear infinite; color: var(--primary); }
   @keyframes spin { to { transform: rotate(360deg); } }
   .content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
