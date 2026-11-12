@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, type Rule, type RuleInput } from '../lib/api';
   import { app, guarded, refreshAll, toast } from '../lib/store.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import Plus from '@lucide/svelte/icons/plus';
   import Pencil from '@lucide/svelte/icons/pencil';
   import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -67,7 +68,10 @@
     }
   }
 
+  let deleting = $state<Rule | null>(null);
+
   async function remove(id: number) {
+    deleting = null;
     await guarded(() => api.deleteRule(id));
     await load();
   }
@@ -157,7 +161,7 @@
           <code class="pattern">{r.pattern}</code>{#if !r.case_insensitive}<span class="muted small"> · case-sensitive</span>{/if}
         </div>
         <button class="ghost" onclick={() => startEdit(r)} title="Edit"><Pencil size={15} /></button>
-        <button class="ghost danger" onclick={() => remove(r.id)} title="Delete"><Trash2 size={15} /></button>
+        <button class="ghost danger" onclick={() => (deleting = r)} title="Delete"><Trash2 size={15} /></button>
       </div>
       <div class="chips applied">
         {#each r.tag_ids as id (id)}
@@ -174,6 +178,15 @@
     {#if !draft}<div class="card empty">No rules yet. Click <b>New rule</b> to create one.</div>{/if}
   {/each}
 </div>
+
+{#if deleting}
+  <ConfirmDialog title="Delete this rule?" onconfirm={() => remove(deleting!.id)} oncancel={() => (deleting = null)}>
+    <p>
+      The rule <b>{deleting.name}</b> will be deleted and will no longer apply automatically to new videos.
+      Tags and playlists it already assigned are kept. This cannot be undone.
+    </p>
+  </ConfirmDialog>
+{/if}
 
 <style>
   .head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; }
