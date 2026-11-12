@@ -78,6 +78,9 @@ pub const DEFAULT_SETTINGS: &[(&str, &str)] = &[
     ("library_view", "grid"),
     ("default_folder_id", ""),
     ("escape_action", "stop"),
+    ("grid_page_size", "60"),
+    ("table_page_size", "20"),
+    ("col_widths", ""),
 ];
 
 pub struct Library {
@@ -253,11 +256,46 @@ impl Library {
     // ----------------------------------------------------------------- videos
 
     pub fn get_video(&self, id: i64) -> Result<Video> {
-        let mut v = self.query_videos("v.id = ?", vec![Value::Integer(id)], None, SortBy::Default, false)?;
+        let mut v = self.query_videos("v.id = ?", vec![Value::Integer(id)], None, SortBy::Default, false, None)?;
         v.pop().ok_or_else(|| Error::Msg(format!("video {id} not found")))
     }
 
     pub fn list_videos(&self, filter: &VideoFilter) -> Result<Vec<Video>> {
+        let (where_sql, args, playlist) = self.filter_sql(filter);
+        self.query_videos(&where_sql, args, playlist, filter.sort_by, filter.sort_desc, None)
+    }
+
+    /// One page of the filtered/sorted list plus the total number of matches.
+    /// `page` is 0-based; `page_size` is clamped to at least 1.
+    pub fn list_videos_page(&self, filter: &VideoFilter, page: usize, page_size: usize) -> Result<VideoPage> {
+        let (where_sql, args, playlist) = self.filter_sql(filter);
+        let join = if playlist.is_some() { "JOIN playlist_items pi ON pi.video_id = v.id AND pi.playlist_id = ?" } else { "" };
+        let mut count_args: Vec<Value> = Vec::new();
+        if let Some(pl) = playlist {
+            count_args.push(Value::Integer(pl));
+        }
+        count_args.extend(args.iter().cloned());
+        let total: i64 = self.conn.query_row(
+            &format!("SELECT COUNT(*) FROM videos v {join} WHERE {where_sql}"),
+            params_from_iter(count_args),
+            |r| r.get(0),
+        )?;
+        let page_size = page_size.max(1);
+        // Past the end (e.g. after deletions): fall back to the last page.
+        let last = (total as usize).saturating_sub(1) / page_size;
+        let page = page.min(last);
+        let items = self.query_videos(
+            &where_sql,
+            args,
+            playlist,
+            filter.sort_by,
+            filter.sort_desc,
+            Some((page_size as i64, (page * page_size) as i64)),
+        )?;
+        Ok(VideoPage { items, total: total as usize, page, page_size })
+    }
+
+    fn filter_sql(&self, filter: &VideoFilter) -> (String, Vec<Value>, Option<i64>) {
         let mut clauses: Vec<String> = Vec::new();
         let mut args: Vec<Value> = Vec::new();
         let mut join_playlist = None;
@@ -303,7 +341,7 @@ impl Library {
             args.push(Value::Integer(unique.len() as i64));
         }
         let where_sql = if clauses.is_empty() { "1=1".to_string() } else { clauses.join(" AND ") };
-        self.query_videos(&where_sql, args, join_playlist, filter.sort_by, filter.sort_desc)
+        (where_sql, args, join_playlist)
     }
 
     fn query_videos(
@@ -313,6 +351,7 @@ impl Library {
         playlist: Option<i64>,
         sort_by: SortBy,
         desc: bool,
+        limit_offset: Option<(i64, i64)>,
     ) -> Result<Vec<Video>> {
         let mut all_args: Vec<Value> = Vec::new();
         let join = match playlist {
@@ -336,9 +375,13 @@ impl Library {
             ),
         };
         all_args.extend(args);
+        let limit = match limit_offset {
+            Some((l, o)) => format!(" LIMIT {l} OFFSET {o}"),
+            None => String::new(),
+        };
         let sql = format!(
             "SELECT v.id, v.path, v.folder_id, v.title, v.size, v.modified, v.watched, v.created, v.rating, v.duration
-             FROM videos v {join} WHERE {where_sql} ORDER BY {order}"
+             FROM videos v {join} WHERE {where_sql} ORDER BY {order}{limit}"
         );
         let mut st = self.conn.prepare(&sql)?;
         let mut videos: Vec<Video> = st
@@ -692,6 +735,24 @@ mod tests {
         assert!(!path.exists());
         assert!(lib.scan_folder(f.id).is_err());
         assert_eq!(lib.list_videos(&VideoFilter::default()).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn pages_slice_sorted_results_and_report_total() {
+        let (_d, lib, _f) = setup(); // 3 videos
+        let f = VideoFilter { sort_by: SortBy::Title, ..Default::default() };
+        let all: Vec<_> = lib.list_videos(&f).unwrap().into_iter().map(|v| v.id).collect();
+        let p0 = lib.list_videos_page(&f, 0, 2).unwrap();
+        let p1 = lib.list_videos_page(&f, 1, 2).unwrap();
+        assert_eq!((p0.total, p0.items.len(), p1.items.len()), (3, 2, 1));
+        let paged: Vec<_> = p0.items.iter().chain(&p1.items).map(|v| v.id).collect();
+        assert_eq!(paged, all);
+        // Out-of-range pages clamp to the last one.
+        let far = lib.list_videos_page(&f, 99, 2).unwrap();
+        assert_eq!((far.page, far.items.len()), (1, 1));
+        // Filters apply to the total.
+        let none = lib.list_videos_page(&VideoFilter { search: Some("zzz".into()), ..Default::default() }, 0, 2).unwrap();
+        assert_eq!((none.total, none.items.len()), (0, 0));
     }
 
     #[test]

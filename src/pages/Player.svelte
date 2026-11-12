@@ -16,6 +16,8 @@
   import Minimize from '@lucide/svelte/icons/minimize';
   import ListVideo from '@lucide/svelte/icons/list-video';
   import X from '@lucide/svelte/icons/x';
+  import Gauge from '@lucide/svelte/icons/gauge';
+  import Check from '@lucide/svelte/icons/check';
 
   const video = $derived(currentVideo());
   const hasPrev = $derived(queueIndex() > 0);
@@ -38,6 +40,16 @@
     void [showPanel, app.player.video_id];
     queueMicrotask(() => listEl?.querySelector('.current')?.scrollIntoView({ block: 'nearest' }));
   });
+
+  // Playback speed menu (in the top bar).
+  const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+  let speedOpen = $state(false);
+  const speed = $derived(app.player.speed || 1);
+  const fmtSpeed = (s: number) => `${s}x`;
+  async function setSpeed(s: number) {
+    speedOpen = false;
+    await guarded(() => api.setSpeed(s));
+  }
 
   function poke() {
     visible = true;
@@ -64,6 +76,7 @@
 
   /** Esc: close the panel first; then leave fullscreen and do the configured action. */
   async function escape() {
+    if (speedOpen) { speedOpen = false; return; }
     if (panelOpen) { panelOpen = false; return; }
     const action = app.settings.escape_action;
     if (action === 'stop') await stop();
@@ -125,6 +138,18 @@
     <button class="danger" onclick={stop} title="Close the video (stops playback)"><CircleX size={16} /> Close</button>
     <button onclick={back} title="Back to the library (keeps playing)"><ArrowLeft size={16} /> Library</button>
     <div class="title grow">{video?.title ?? ''}</div>
+    <div class="speed">
+      <button class:on={speed !== 1} onclick={() => (speedOpen = !speedOpen)} title="Playback speed"><Gauge size={16} /> {fmtSpeed(speed)}</button>
+      {#if speedOpen}
+        <div class="menu" role="menu">
+          {#each SPEEDS as s}
+            <button class="opt" class:current={s === speed} role="menuitem" onclick={() => setSpeed(s)}>
+              <span class="chk">{#if s === speed}<Check size={14} />{/if}</span>{fmtSpeed(s)}{#if s === 1}<span class="muted"> (normal)</span>{/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
 
   {#if showPanel}
@@ -199,6 +224,17 @@
   /* Icon buttons: no hover border/background, only the icon turns gold. */
   .bar button.ghost:hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--primary); }
   .bar button.primary { background: var(--primary); }
+
+  .speed { position: relative; }
+  .top button.on { color: var(--primary); border-color: var(--primary); }
+  .menu {
+    position: absolute; right: 0; top: calc(100% + 6px); min-width: 140px; display: flex; flex-direction: column; padding: 4px;
+    background: #101014f5; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px #000a; z-index: 5;
+  }
+  .opt { justify-content: flex-start; background: transparent !important; border-color: transparent; }
+  .opt:hover { background: var(--surface-2) !important; }
+  .opt.current { color: var(--primary); }
+  .chk { width: 16px; display: inline-flex; }
 
   .panel {
     position: absolute; right: 16px; top: 70px; bottom: 120px; width: 340px; display: flex; flex-direction: column;

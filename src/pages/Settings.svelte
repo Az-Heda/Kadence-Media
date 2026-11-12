@@ -11,6 +11,14 @@
   let dbPath = $state('');
   guarded(async () => (dbPath = await api.databasePath()));
 
+  let gridSize = $state(Number(app.settings.grid_page_size) || 60);
+  let tableSize = $state(Number(app.settings.table_page_size) || 20);
+  async function commitPageSize(key: 'grid_page_size' | 'table_page_size', value: number, fallback: number) {
+    const v = Math.min(1000, Math.max(1, Math.round(value) || fallback));
+    if (key === 'grid_page_size') gridSize = v; else tableSize = v;
+    await saveSetting(key, String(v));
+  }
+
   async function commitVolMax() {
     const v = Math.min(1000, Math.max(100, Math.round(volMax) || 300));
     volMax = v;
@@ -53,6 +61,29 @@
         <Table2 size={15} /> Table
       </button>
     </div>
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">Videos per page (grid)</div>
+      <div class="muted">How many cards the library shows on each page in grid view.</div>
+    </div>
+    <input type="number" min="1" max="1000" step="10" bind:value={gridSize} style="width:84px"
+      onchange={() => commitPageSize('grid_page_size', gridSize, 60)} />
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">Videos per page (table)</div>
+      <div class="muted">How many rows the library shows on each page in table view.</div>
+    </div>
+    <input type="number" min="1" max="1000" step="5" bind:value={tableSize} style="width:84px"
+      onchange={() => commitPageSize('table_page_size', tableSize, 20)} />
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">Table column widths</div>
+      <div class="muted">Drag a column's right edge in the table to resize it; widths are remembered.</div>
+    </div>
+    <button disabled={!app.settings.col_widths} onclick={() => saveSetting('col_widths', '')}>Reset column widths</button>
   </div>
 </section>
 

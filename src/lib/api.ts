@@ -9,6 +9,7 @@ export interface Video {
   size: number; modified: number; created: number; watched: boolean; rating: number; duration: number | null;
   tags: VideoTag[]; playlist_ids: number[];
 }
+export interface VideoPage { items: Video[]; total: number; page: number; page_size: number }
 export interface IndexingProgress { running: boolean; done: number; total: number }
 export type SortBy = 'default' | 'title' | 'path' | 'created' | 'size' | 'duration' | 'rating';
 export interface VideoFilter {
@@ -24,11 +25,12 @@ export interface Rule {
 export type RuleInput = Omit<Rule, 'id'>;
 export interface PlayerState {
   video_id: number | null; loaded: boolean; idle: boolean; paused: boolean;
-  position: number; duration: number; volume: number; muted: boolean;
+  position: number; duration: number; volume: number; muted: boolean; speed: number;
 }
 export type Settings = {
   volume_max: string; volume: string; primary_color: string; embed_video: string; mpv_path: string;
   library_view: string; default_folder_id: string; escape_action: string;
+  grid_page_size: string; table_page_size: string; col_widths: string;
 };
 
 export const api = {
@@ -48,6 +50,8 @@ export const api = {
   rescanAll: () => invoke<[ScanReport, string[]]>('rescan_all'),
 
   listVideos: (filter: VideoFilter) => invoke<Video[]>('list_videos', { filter }),
+  listVideosPage: (filter: VideoFilter, page: number, pageSize: number) =>
+    invoke<VideoPage>('list_videos_page', { filter, page, pageSize }),
   indexingStatus: () => invoke<IndexingProgress>('indexing_status'),
   setRating: (id: number, rating: number) => invoke<void>('set_rating', { id, rating }),
   setWatched: (id: number, watched: boolean) => invoke<void>('set_watched', { id, watched }),
@@ -78,6 +82,7 @@ export const api = {
   setPause: (paused: boolean) => invoke<void>('player_set_pause', { paused }),
   seek: (seconds: number, relative: boolean) => invoke<void>('player_seek', { seconds, relative }),
   setVolume: (volume: number) => invoke<void>('player_set_volume', { volume }),
+  setSpeed: (speed: number) => invoke<void>('player_set_speed', { speed }),
   setMute: (muted: boolean) => invoke<void>('player_set_mute', { muted }),
   stop: () => invoke<void>('player_stop'),
 
@@ -101,4 +106,13 @@ export function fmtSize(bytes: number): string {
   let i = 0, v = bytes;
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
   return `${v.toFixed(i ? 1 : 0)} ${u[i]}`;
+}
+
+const p2 = (n: number) => String(n).padStart(2, '0');
+
+/** hh:mm:ss dd/mm/yyyy from unix seconds (local time). Empty for unknown (0). */
+export function fmtDateTime(unixSeconds: number): string {
+  if (!unixSeconds) return '';
+  const d = new Date(unixSeconds * 1000);
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`;
 }

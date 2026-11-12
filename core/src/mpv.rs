@@ -17,7 +17,7 @@ pub type Writer = Box<dyn Write + Send>;
 pub type EventHandler = Arc<dyn Fn(MpvEvent) + Send + Sync>;
 
 /// Properties we observe; mpv pushes `property-change` events for them.
-pub const OBSERVED: &[&str] = &["time-pos", "duration", "pause", "volume", "mute", "idle-active"];
+pub const OBSERVED: &[&str] = &["time-pos", "duration", "pause", "volume", "mute", "idle-active", "speed"];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MpvEvent {

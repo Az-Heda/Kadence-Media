@@ -137,6 +137,8 @@ pub fn run() {
             commands::apply_rules_to_existing,
             commands::count_pattern_matches,
             commands::list_videos,
+            commands::list_videos_page,
+            commands::player_set_speed,
             commands::set_watched,
             commands::set_rating,
             commands::indexing_status,

@@ -80,6 +80,17 @@ pub struct VideoFilter {
     pub folder_id: Option<i64>,
 }
 
+/// One page of videos, already filtered and sorted.
+#[derive(Debug, Clone, Serialize)]
+pub struct VideoPage {
+    pub items: Vec<Video>,
+    /// Number of videos matching the filter across all pages.
+    pub total: usize,
+    /// The page actually returned (0-based; clamped to the last page).
+    pub page: usize,
+    pub page_size: usize,
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ScanReport {
     pub added: usize,

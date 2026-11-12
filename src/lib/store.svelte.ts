@@ -1,4 +1,4 @@
-import { api, errMsg, type SortBy, type Folder, type Playlist, type PlayerState, type Settings, type Tag, type Video } from './api';
+import { api, errMsg, type SortBy, type VideoFilter, type Folder, type Playlist, type PlayerState, type Settings, type Tag, type Video } from './api';
 
 export type Page = 'library' | 'folders' | 'collections' | 'rules' | 'settings';
 
@@ -7,13 +7,15 @@ export const DEFAULT_PRIMARY = '#d4a017';
 export const app = $state({
   page: 'library' as Page,
   playerView: false,
-  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '', escape_action: 'stop' } as Settings,
+  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '' } as Settings,
   folders: [] as Folder[],
   tags: [] as Tag[],
   playlists: [] as Playlist[],
   videos: [] as Video[],
+  /// Pagination of the library list (page is 0-based).
+  paging: { page: 0, total: 0 },
   player: {
-    video_id: null, loaded: false, idle: true, paused: false, position: 0, duration: 0, volume: 100, muted: false,
+    video_id: null, loaded: false, idle: true, paused: false, position: 0, duration: 0, volume: 100, muted: false, speed: 1,
   } as PlayerState,
   dnd: { dragging: null, target: null, after: false } as { dragging: number | null; target: number | null; after: boolean },
   indexing: { running: false, done: 0, total: 0 } as { running: boolean; done: number; total: number },
@@ -85,20 +87,39 @@ export async function saveSetting(key: keyof Settings, value: string) {
   });
 }
 
-export async function loadVideos() {
+/** Items per page for the current library view (grid / table). */
+export function pageSize(): number {
+  const table = app.settings.library_view === 'table';
+  const v = Number(table ? app.settings.table_page_size : app.settings.grid_page_size);
+  return Math.min(1000, Math.max(1, Math.round(v) || (table ? 20 : 60)));
+}
+
+export function libraryFilter(): VideoFilter {
   const f = app.filter;
-  const videos = await guarded(() =>
-    api.listVideos({
-      search: f.search,
-      watched: f.watched,
-      tag_ids: [...f.tag_ids],
-      playlist_id: f.playlist_id,
-      folder_id: f.folder_id,
-      sort_by: f.sort_by,
-      sort_desc: f.sort_desc,
-    }),
-  );
-  if (videos) app.videos = videos;
+  return {
+    search: f.search,
+    watched: f.watched,
+    tag_ids: [...f.tag_ids],
+    playlist_id: f.playlist_id,
+    folder_id: f.folder_id,
+    sort_by: f.sort_by,
+    sort_desc: f.sort_desc,
+  };
+}
+
+/** Load the current page: filtering, sorting and slicing all happen in the backend. */
+export async function loadVideos() {
+  const res = await guarded(() => api.listVideosPage(libraryFilter(), app.paging.page, pageSize()));
+  if (res) {
+    app.videos = res.items;
+    app.paging.page = res.page; // the backend clamps it to the last page
+    app.paging.total = res.total;
+  }
+}
+
+export function setPage(page: number) {
+  app.paging.page = Math.max(0, page);
+  loadVideos();
 }
 
 export async function loadMeta() {
@@ -117,7 +138,8 @@ export async function refreshAll() {
 
 export function currentVideo(): Video | undefined {
   const id = app.player.video_id;
-  return id == null ? undefined : app.videos.find((v) => v.id === id);
+  // The playing video may be on another library page: fall back to the queue.
+  return id == null ? undefined : app.videos.find((v) => v.id === id) ?? app.queueVideos.find((v) => v.id === id);
 }
 
 /** Play `ids[index]` and remember `ids` as the queue for next/previous/auto-advance. */

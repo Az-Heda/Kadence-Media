@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use tauri::{AppHandle, Manager, State};
 use vp_core::mpv::MpvConfig;
-use vp_core::{scan_folder_files_pub, Folder, Playlist, Rule, RuleInput, ScanReport, Tag, Video, VideoFilter};
+use vp_core::{scan_folder_files_pub, Folder, Playlist, Rule, RuleInput, ScanReport, Tag, Video, VideoFilter, VideoPage};
 
 use crate::indexer::{Indexer, Progress};
 use crate::player::{json_f64, resolve_mpv, PlayerState};
@@ -125,6 +125,11 @@ pub fn count_pattern_matches(state: State<'_, AppState>, pattern: String, case_i
 #[tauri::command]
 pub fn list_videos(state: State<'_, AppState>, filter: Option<VideoFilter>) -> Res<Vec<Video>> {
     lib!(state).list_videos(&filter.unwrap_or_default()).map_err(e)
+}
+
+#[tauri::command]
+pub fn list_videos_page(state: State<'_, AppState>, filter: Option<VideoFilter>, page: usize, page_size: usize) -> Res<VideoPage> {
+    lib!(state).list_videos_page(&filter.unwrap_or_default(), page, page_size).map_err(e)
 }
 
 #[tauri::command]
@@ -277,6 +282,13 @@ pub fn player_set_volume(state: State<'_, AppState>, volume: f64) -> Res<()> {
     // The player may not be running yet; the saved value is used at spawn.
     let _ = state.player.with_client(|c| c.set_property("volume", json_f64(v)));
     Ok(())
+}
+
+#[tauri::command]
+pub fn player_set_speed(state: State<'_, AppState>, speed: f64) -> Res<()> {
+    let v = speed.clamp(0.25, 4.0);
+    state.player.state.lock().unwrap().speed = v;
+    state.player.with_client(|c| c.set_property("speed", json_f64(v)))
 }
 
 #[tauri::command]

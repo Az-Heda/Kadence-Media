@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api, type Video } from '../lib/api';
-  import { app, defaultFolderId, guarded, loadVideos, moveInPlaylist, playQueue, refreshAll, removeFromPlaylist, toast } from '../lib/store.svelte';
+  import { app, defaultFolderId, guarded, libraryFilter, loadVideos, moveInPlaylist, pageSize, playQueue, refreshAll, removeFromPlaylist, setPage, toast } from '../lib/store.svelte';
   import type { PlaylistCtx } from '../lib/dnd';
   import type { SortBy } from '../lib/api';
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
@@ -9,6 +9,10 @@
   import Play from '@lucide/svelte/icons/play';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import X from '@lucide/svelte/icons/x';
+  import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import ChevronsLeft from '@lucide/svelte/icons/chevrons-left';
+  import ChevronsRight from '@lucide/svelte/icons/chevrons-right';
   import VideoCard from '../components/VideoCard.svelte';
   import ManageVideo from '../components/ManageVideo.svelte';
 
@@ -20,6 +24,9 @@
   let timer: ReturnType<typeof setTimeout>;
   $effect(() => {
     void [app.filter.search, app.filter.watched, app.filter.playlist_id, app.filter.folder_id, [...app.filter.tag_ids], app.filter.sort_by, app.filter.sort_desc];
+    void [app.settings.library_view, app.settings.grid_page_size, app.settings.table_page_size];
+    // Any filter/sort/page-size change starts again from the first page.
+    app.paging.page = 0;
     clearTimeout(timer);
     timer = setTimeout(loadVideos, 150);
     return () => clearTimeout(timer);
@@ -57,7 +64,15 @@
 
   // A queue started from a playlist view gets the playlist side panel in the player.
   const playlistTitle = () => app.playlists.find((p) => p.id === app.filter.playlist_id)?.name ?? null;
-  const play = (v: Video) => playQueue(app.videos, app.videos.findIndex((x) => x.id === v.id), playlistTitle());
+  // The queue is the whole filtered list (all pages), fetched from the backend.
+  async function playFiltered(startId?: number) {
+    const all = await guarded(() => api.listVideos(libraryFilter()));
+    if (!all || all.length === 0) return;
+    const i = startId === undefined ? 0 : all.findIndex((x) => x.id === startId);
+    await playQueue(all, Math.max(0, i), playlistTitle());
+  }
+  const play = (v: Video) => playFiltered(v.id);
+  const pageCount = $derived(Math.max(1, Math.ceil(app.paging.total / pageSize())));
   // Playlist tools (drag to reorder, remove) appear only while a playlist is being viewed.
   const playlistCtx = $derived<PlaylistCtx | null>(
     app.filter.playlist_id === null
@@ -88,10 +103,10 @@
 <div class="head">
   <div class="grow">
     <h1>Library</h1>
-    <div class="muted">{app.videos.length} video{app.videos.length === 1 ? '' : 's'}{filtered ? ' (filtered)' : ''}</div>
+    <div class="muted">{app.paging.total} video{app.paging.total === 1 ? '' : 's'}{filtered ? ' (filtered)' : ''}</div>
   </div>
   <button onclick={rescan} disabled={scanning}><RefreshCw size={15} /> {scanning ? 'Scanning…' : 'Rescan'}</button>
-  <button class="primary" disabled={app.videos.length === 0} onclick={() => playQueue(app.videos, 0, playlistTitle())}><Play size={15} fill="currentColor" /> Play all</button>
+  <button class="primary" disabled={app.paging.total === 0} onclick={() => playFiltered()}><Play size={15} fill="currentColor" /> Play all</button>
 </div>
 
 <div class="toolbar">
@@ -120,7 +135,7 @@
   {#if filtered}<button class="ghost" onclick={clearFilters}><X size={15} /> Clear</button>{/if}
 </div>
 
-{#if playlistCtx?.canReorder && app.videos.length > 1}
+{#if playlistCtx?.canReorder && app.paging.total > 1}
   <div class="muted hint">Drag videos to reorder this playlist.</div>
 {/if}
 
@@ -154,6 +169,16 @@
   </div>
 {/if}
 
+{#if pageCount > 1}
+  <div class="pager">
+    <button class="ghost" disabled={app.paging.page === 0} onclick={() => setPage(0)} title="First page"><ChevronsLeft size={16} /></button>
+    <button class="ghost" disabled={app.paging.page === 0} onclick={() => setPage(app.paging.page - 1)} title="Previous page"><ChevronLeft size={16} /></button>
+    <span class="muted">Page {app.paging.page + 1} of {pageCount}</span>
+    <button class="ghost" disabled={app.paging.page >= pageCount - 1} onclick={() => setPage(app.paging.page + 1)} title="Next page"><ChevronRight size={16} /></button>
+    <button class="ghost" disabled={app.paging.page >= pageCount - 1} onclick={() => setPage(pageCount - 1)} title="Last page"><ChevronsRight size={16} /></button>
+  </div>
+{/if}
+
 {#if managing}<ManageVideo video={managing} onclose={() => (managingId = null)} />{/if}
 
 <style>
@@ -166,5 +191,6 @@
   .hint { font-size: 12px; margin: -4px 0 12px; }
   .tagbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+  .pager { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 16px 0 4px; }
   .empty { text-align: center; padding: 40px; color: var(--muted); }
 </style>

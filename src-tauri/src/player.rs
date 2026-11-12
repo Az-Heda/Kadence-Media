@@ -20,6 +20,7 @@ pub struct PlayerState {
     pub duration: f64,
     pub volume: f64,
     pub muted: bool,
+    pub speed: f64,
 }
 
 #[derive(Serialize, Clone)]
@@ -114,6 +115,7 @@ fn make_handler(app: AppHandle, state: Arc<Mutex<PlayerState>>) -> Arc<dyn Fn(Mp
                     }
                     "pause" => st.paused = data.as_bool().unwrap_or(false),
                     "volume" => st.volume = data.as_f64().unwrap_or(st.volume),
+                    "speed" => st.speed = data.as_f64().unwrap_or(1.0),
                     "mute" => st.muted = data.as_bool().unwrap_or(false),
                     "idle-active" => st.idle = data.as_bool().unwrap_or(false),
                     _ => return,
