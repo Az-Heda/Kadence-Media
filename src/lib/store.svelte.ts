@@ -7,7 +7,7 @@ export const DEFAULT_PRIMARY = '#d4a017';
 export const app = $state({
   page: 'library' as Page,
   playerView: false,
-  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '' } as Settings,
+  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', ffmpeg_path: '', show_hidden: 'false', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '' } as Settings,
   folders: [] as Folder[],
   tags: [] as Tag[],
   playlists: [] as Playlist[],
@@ -28,6 +28,8 @@ export const app = $state({
   filter: {
     search: '',
     watched: null as boolean | null,
+    /// Show only the hidden videos (the "Hidden" tab).
+    hidden_only: false,
     tag_ids: [] as number[],
     playlist_id: null as number | null,
     folder_id: null as number | null,
@@ -146,6 +148,7 @@ export function libraryFilter(): VideoFilter {
   return {
     search: f.search,
     watched: f.watched,
+    hidden: f.hidden_only && app.settings.show_hidden === 'true' ? 'only' : 'exclude',
     tag_ids: [...f.tag_ids],
     playlist_id: f.playlist_id,
     folder_id: f.folder_id,
@@ -244,7 +247,7 @@ export async function setRating(v: Video, rating: number) {
 /** Move `draggedId` next to `targetId` in the playlist's full order (works while other filters hide items). */
 export async function moveInPlaylist(playlistId: number, draggedId: number, targetId: number, after: boolean) {
   await guarded(async () => {
-    const full = await api.listVideos({ playlist_id: playlistId, sort_by: 'default' });
+    const full = await api.listVideos({ playlist_id: playlistId, sort_by: 'default', hidden: 'any' });
     const ids = full.map((v) => v.id).filter((id) => id !== draggedId);
     const at = ids.indexOf(targetId);
     if (at < 0) return;
@@ -275,5 +278,14 @@ export async function toggleWatched(v: Video) {
     await api.setWatched(v.id, !v.watched);
     v.watched = !v.watched;
     if (app.filter.watched !== null) await loadVideos();
+  });
+}
+
+/** Hide (or unhide) a video; hidden videos leave the library unless "Show hidden videos" is on. */
+export async function setHidden(v: Video, hidden: boolean) {
+  await guarded(async () => {
+    await api.setHidden(v.id, hidden);
+    toast(hidden ? 'Video hidden' : 'Video unhidden');
+    await loadVideos();
   });
 }

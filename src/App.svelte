@@ -22,12 +22,18 @@
 
   const surface = new URLSearchParams(location.search).get('surface') ?? 'overlay';
 
-  const pages: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
+  const allPages: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
     { id: 'library', label: 'Library', icon: LayoutGrid },
     { id: 'folders', label: 'Folders', icon: FolderOpen },
     { id: 'collections', label: 'Tags & Playlists', icon: Tags },
     { id: 'rules', label: 'Automatic Rules', icon: WandSparkles },
   ];
+  // Without folders there is nothing to show: hide the Library and land on Folders.
+  const pages = $derived(allPages.filter((p) => p.id !== 'library' || app.folders.length > 0));
+  let loaded = $state(false);
+  $effect(() => {
+    if (loaded && app.folders.length === 0 && app.page === 'library') app.page = 'folders';
+  });
   // Pinned to the bottom of the sidebar.
   const bottomPages: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
     { id: 'themes', label: 'Themes', icon: Palette },
@@ -45,6 +51,7 @@
       await loadSettings();
       app.filter.folder_id = defaultFolderId(); // default folder is applied before the first load
       await refreshAll();
+      loaded = true;
       app.player = await api.playerState();
       app.indexing = await api.indexingStatus();
       // Pick up files added/removed while the app was closed (errors only, to avoid noise).

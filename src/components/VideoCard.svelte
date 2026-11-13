@@ -9,14 +9,14 @@
   import EyeOff from '@lucide/svelte/icons/eye-off';
   import Tag from '@lucide/svelte/icons/tag';
 
-  let { video, onplay, onmanage, playlist = null }: {
-    video: Video; onplay: () => void; onmanage: () => void; playlist?: PlaylistCtx | null;
+  let { video, onplay, onmanage, oncontext, playlist = null }: {
+    video: Video; onplay: () => void; onmanage: () => void; oncontext?: (e: MouseEvent) => void; playlist?: PlaylistCtx | null;
   } = $props();
   const dnd = $derived(playlist?.canReorder ? dragHandlers(video.id, 'x', playlist.onmove) : {});
 </script>
 
-<div class="card video {dropMark(video.id)}" class:watched={video.watched} class:reorderable={playlist?.canReorder}
-  draggable={playlist?.canReorder ? 'true' : undefined} {...dnd}>
+<div class="card video {dropMark(video.id)}" class:watched={video.watched} class:hidden-video={video.hidden} class:reorderable={playlist?.canReorder}
+  draggable={playlist?.canReorder ? 'true' : undefined} {...dnd} oncontextmenu={oncontext}>
   <Thumb {video} {onplay} />
   <div class="info">
     <div class="title" title={video.path}>{video.title}</div>
@@ -55,4 +55,5 @@
   .actions { display: flex; justify-content: space-between; padding: 6px 8px 8px; }
   .actions button { font-size: 12px; padding: 4px 8px; }
   .watched .title { opacity: .7; }
+  .hidden-video { opacity: .55; }
 </style>

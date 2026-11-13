@@ -144,6 +144,11 @@ pub fn toggle_watched_matching(state: State<'_, AppState>, filter: Option<VideoF
 }
 
 #[tauri::command]
+pub fn set_hidden(state: State<'_, AppState>, id: i64, hidden: bool) -> Res<()> {
+    lib!(state).set_hidden(id, hidden).map_err(e)
+}
+
+#[tauri::command]
 pub fn set_watched(state: State<'_, AppState>, id: i64, watched: bool) -> Res<()> {
     lib!(state).set_watched(id, watched).map_err(e)
 }

@@ -22,8 +22,8 @@ pub struct ThumbReady {
 
 /// Grab one frame at `seconds` as JPEG bytes. `Ok(None)` = ffmpeg ran but produced nothing;
 /// `Err` = ffmpeg could not be started (most likely not installed).
-fn grab(path: &str, seconds: f64) -> Result<Option<Vec<u8>>, String> {
-    let mut cmd = Command::new("ffmpeg");
+fn grab(ffmpeg: &str, path: &str, seconds: f64) -> Result<Option<Vec<u8>>, String> {
+    let mut cmd = Command::new(ffmpeg);
     cmd.args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", &format!("{seconds:.2}"), "-i", path])
         .args(["-frames:v", "1", "-an", "-sn", "-vf", &format!("scale={WIDTH}:-2"), "-q:v", "4"])
         .args(["-f", "image2pipe", "-c:v", "mjpeg", "pipe:1"])
@@ -62,6 +62,7 @@ fn grab(path: &str, seconds: f64) -> Result<Option<Vec<u8>>, String> {
 /// Generate thumbnails for every video that has none, until none are left or `cancel` is set.
 pub fn run(app: &AppHandle, cancel: &AtomicBool) {
     let state = app.state::<AppState>();
+    let ffmpeg = crate::player::resolve_tool("ffmpeg", &state.lib.lock().ok().and_then(|l| l.get_setting("ffmpeg_path").ok().flatten()).unwrap_or_default());
     loop {
         if cancel.load(Ordering::SeqCst) {
             return;
@@ -82,9 +83,9 @@ pub fn run(app: &AppHandle, cancel: &AtomicBool) {
                     Some(d) if d > 0.0 => d * 0.1,
                     _ => 5.0,
                 };
-                let result = match grab(&path, at) {
+                let result = match grab(&ffmpeg, &path, at) {
                     // Very short or odd files: retry from the very start.
-                    Ok(None) if at > 0.0 => grab(&path, 0.0),
+                    Ok(None) if at > 0.0 => grab(&ffmpeg, &path, 0.0),
                     other => other,
                 };
                 match result {

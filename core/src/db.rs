@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS videos (
     duration  REAL,
     thumb     INTEGER,
     watched   INTEGER NOT NULL DEFAULT 0,
+    hidden    INTEGER NOT NULL DEFAULT 0,
     added_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_videos_folder ON videos(folder_id);
@@ -82,6 +83,8 @@ pub const DEFAULT_SETTINGS: &[(&str, &str)] = &[
     ("primary_color", "#d4a017"),
     ("embed_video", "true"),
     ("mpv_path", ""),
+    ("ffmpeg_path", ""),
+    ("show_hidden", "false"),
     ("library_view", "grid"),
     ("default_folder_id", ""),
     ("escape_action", "stop"),
@@ -120,6 +123,7 @@ impl Library {
             ("rating", "ALTER TABLE videos ADD COLUMN rating INTEGER NOT NULL DEFAULT 0"),
             ("duration", "ALTER TABLE videos ADD COLUMN duration REAL"),
             ("thumb", "ALTER TABLE videos ADD COLUMN thumb INTEGER"),
+            ("hidden", "ALTER TABLE videos ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"),
         ] {
             let exists: bool = conn
                 .prepare("SELECT 1 FROM pragma_table_info('videos') WHERE name = ?1")?
@@ -332,6 +336,11 @@ impl Library {
             args.push(Value::Text(like.clone()));
             args.push(Value::Text(like));
         }
+        match filter.hidden {
+            HiddenMode::Exclude => clauses.push("v.hidden = 0".into()),
+            HiddenMode::Only => clauses.push("v.hidden = 1".into()),
+            HiddenMode::Any => {}
+        }
         if let Some(w) = filter.watched {
             clauses.push("v.watched = ?".into());
             args.push(Value::Integer(w as i64));
@@ -403,7 +412,7 @@ impl Library {
             None => String::new(),
         };
         let sql = format!(
-            "SELECT v.id, v.path, v.folder_id, v.title, v.size, v.modified, v.watched, v.created, v.rating, v.duration, v.thumb
+            "SELECT v.id, v.path, v.folder_id, v.title, v.size, v.modified, v.watched, v.created, v.rating, v.duration, v.thumb, v.hidden
              FROM videos v {join} WHERE {where_sql} ORDER BY {order}{limit}"
         );
         let mut st = self.conn.prepare(&sql)?;
@@ -421,6 +430,7 @@ impl Library {
                     rating: r.get::<_, i64>(8)? as f64 / 2.0,
                     duration: r.get(9)?,
                     thumb: r.get::<_, Option<i64>>(10)? == Some(1),
+                    hidden: r.get::<_, i64>(11)? != 0,
                     tags: Vec::new(),
                     playlist_ids: Vec::new(),
                 })
@@ -451,6 +461,11 @@ impl Library {
             }
         }
         Ok(videos)
+    }
+
+    pub fn set_hidden(&self, video_id: i64, hidden: bool) -> Result<()> {
+        self.conn.execute("UPDATE videos SET hidden = ?1 WHERE id = ?2", params![hidden as i64, video_id])?;
+        Ok(())
     }
 
     pub fn set_watched(&self, video_id: i64, watched: bool) -> Result<()> {
@@ -852,6 +867,20 @@ mod tests {
         let (_d, lib, f) = setup();
         lib.remove_folder(f.id).unwrap();
         assert!(lib.list_videos(&VideoFilter::default()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn hidden_videos_are_left_out_unless_asked() {
+        let (_d, lib, _f) = setup();
+        let all = lib.list_videos(&VideoFilter::default()).unwrap();
+        lib.set_hidden(all[0].id, true).unwrap();
+        let n = all.len();
+        assert_eq!(lib.list_videos(&VideoFilter::default()).unwrap().len(), n - 1);
+        let only = lib.list_videos(&VideoFilter { hidden: HiddenMode::Only, ..Default::default() }).unwrap();
+        assert_eq!(only.len(), 1);
+        assert!(only[0].hidden);
+        assert_eq!(lib.list_videos(&VideoFilter { hidden: HiddenMode::Any, ..Default::default() }).unwrap().len(), n);
+        assert_eq!(lib.list_videos_page(&VideoFilter::default(), 0, 10).unwrap().total, n - 1);
     }
 
     #[test]

@@ -10,6 +10,7 @@
 
   let volMax = $state(Number(app.settings.volume_max) || 300);
   let mpvPath = $state(app.settings.mpv_path);
+  let ffmpegPath = $state(app.settings.ffmpeg_path);
   let dbPath = $state('');
   guarded(async () => (dbPath = await api.databasePath()));
 
@@ -104,6 +105,14 @@
   </div>
   <div class="field">
     <div class="grow">
+      <div class="label">Show hidden videos</div>
+      <div class="muted">Adds a "Hidden" tab to the library to see the videos you hid from their right-click menu. They never appear in the other tabs.</div>
+    </div>
+    <input type="checkbox" checked={app.settings.show_hidden === 'true'}
+      onchange={(e) => { saveSetting('show_hidden', String(e.currentTarget.checked)); if (!e.currentTarget.checked) app.filter.hidden_only = false; }} />
+  </div>
+  <div class="field">
+    <div class="grow">
       <div class="label">Table column widths</div>
       <div class="muted">Drag a column's right edge in the table to resize it; widths are remembered.</div>
     </div>
@@ -162,6 +171,14 @@
     </div>
     <input type="text" placeholder="mpv" bind:value={mpvPath} style="width:260px"
       onchange={() => { saveSetting('mpv_path', mpvPath.trim()); toast('Applies the next time the player starts'); }} />
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">ffmpeg executable</div>
+      <div class="muted">Used for thumbnails. Leave empty to use the one next to the app, or <code>ffmpeg</code> from PATH.</div>
+    </div>
+    <input type="text" placeholder="ffmpeg" bind:value={ffmpegPath} style="width:260px"
+      onchange={() => { saveSetting('ffmpeg_path', ffmpegPath.trim()); toast('Applies the next time thumbnails are generated'); }} />
   </div>
 </section>
 

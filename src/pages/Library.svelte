@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api, type Video } from '../lib/api';
-  import { app, defaultFolderId, guarded, libraryFilter, loadVideos, moveInPlaylist, pageSize, playQueue, refreshAll, removeFromPlaylist, setPage, toast, toggleWatchedAll } from '../lib/store.svelte';
+  import { app, defaultFolderId, guarded, libraryFilter, loadVideos, moveInPlaylist, pageSize, playQueue, refreshAll, removeFromPlaylist, setHidden, setPage, toast, toggleWatched, toggleWatchedAll } from '../lib/store.svelte';
   import type { PlaylistCtx } from '../lib/dnd';
   import type { SortBy } from '../lib/api';
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
@@ -14,6 +14,9 @@
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import ChevronsLeft from '@lucide/svelte/icons/chevrons-left';
   import ChevronsRight from '@lucide/svelte/icons/chevrons-right';
+  import EyeOff from '@lucide/svelte/icons/eye-off';
+  import Eye from '@lucide/svelte/icons/eye';
+  import Tag from '@lucide/svelte/icons/tag';
   import VideoCard from '../components/VideoCard.svelte';
   import ManageVideo from '../components/ManageVideo.svelte';
 
@@ -21,17 +24,45 @@
   const managing = $derived(app.videos.find((v) => v.id === managingId));
   let scanning = $state(false);
 
+  // Right-click menu (shared by grid and table).
+  let menu = $state<{ x: number; y: number; video: Video } | null>(null);
+  function openMenu(e: MouseEvent, video: Video) {
+    e.preventDefault();
+    // Keep the menu inside the window.
+    menu = { x: Math.min(e.clientX, window.innerWidth - 220), y: Math.min(e.clientY, window.innerHeight - 190), video };
+  }
+  const closeMenu = () => (menu = null);
+  // Run the action before closing: the items read `menu.video`, which is gone once the menu closes.
+  function menuDo(fn: () => unknown) { try { fn(); } finally { closeMenu(); } }
+
   // Reload whenever any filter changes (debounced for typing in the search box).
   let timer: ReturnType<typeof setTimeout>;
+  let lastKey: string | null = null;
   $effect(() => {
-    void [app.filter.search, app.filter.watched, app.filter.playlist_id, app.filter.folder_id, [...app.filter.tag_ids], app.filter.sort_by, app.filter.sort_desc];
-    void [app.settings.library_view, app.settings.grid_page_size, app.settings.table_page_size];
-    // Any filter/sort/page-size change starts again from the first page.
-    app.paging.page = 0;
+    const key = JSON.stringify([app.filter, app.settings.library_view, app.settings.grid_page_size, app.settings.table_page_size]);
+    // Any filter/sort/page-size change starts again from the first page, but merely
+    // re-opening the Library (e.g. after stopping a video) keeps the current page.
+    if (lastKey !== null && key !== lastKey) app.paging.page = 0;
+    lastKey = key;
     clearTimeout(timer);
     timer = setTimeout(loadVideos, 150);
     return () => clearTimeout(timer);
   });
+
+  function onkey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && menu) { closeMenu(); return; }
+    if (app.playerView || managing || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+    const el = e.target as HTMLElement | null;
+    // Esc = the "Clear" button (also from the search box; a select just closes its dropdown).
+    if (e.key === 'Escape' && el?.tagName !== 'SELECT') {
+      if (filtered) { e.preventDefault(); clearFilters(); }
+      if (el?.tagName === 'INPUT') el.blur();
+      return;
+    }
+    if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
+    if (e.key === 'ArrowLeft' && app.paging.page > 0) { e.preventDefault(); setPage(app.paging.page - 1); }
+    else if (e.key === 'ArrowRight' && app.paging.page < pageCount - 1) { e.preventDefault(); setPage(app.paging.page + 1); }
+  }
 
   function toggleTagFilter(id: number) {
     const t = app.filter.tag_ids;
@@ -41,13 +72,14 @@
   function clearFilters() {
     app.filter.search = '';
     app.filter.watched = null;
+    app.filter.hidden_only = false;
     app.filter.tag_ids = [];
     app.filter.playlist_id = null;
     app.filter.folder_id = defaultFolderId(); // the default folder (if any) stays applied
   }
 
   const filtered = $derived(
-    app.filter.search !== '' || app.filter.watched !== null || app.filter.tag_ids.length > 0 ||
+    app.filter.search !== '' || app.filter.watched !== null || app.filter.hidden_only || app.filter.tag_ids.length > 0 ||
       app.filter.playlist_id !== null || app.filter.folder_id !== defaultFolderId(),
   );
 
@@ -101,6 +133,8 @@
   const watchedOptions: [boolean | null, string][] = [[null, 'All'], [false, 'Unwatched'], [true, 'Watched']];
 </script>
 
+<svelte:window onkeydown={onkey} />
+
 <div class="head">
   <div class="grow">
     <h1>Library</h1>
@@ -120,8 +154,12 @@
   <input type="search" class="grow" placeholder="Search videos…" bind:value={app.filter.search} />
   <div class="seg">
     {#each watchedOptions as [val, label]}
-      <button class:on={app.filter.watched === val} onclick={() => (app.filter.watched = val)}>{label}</button>
+      <button class:on={!app.filter.hidden_only && app.filter.watched === val}
+        onclick={() => { app.filter.hidden_only = false; app.filter.watched = val; }}>{label}</button>
     {/each}
+    {#if app.settings.show_hidden === 'true'}
+      <button class:on={app.filter.hidden_only} onclick={() => (app.filter.hidden_only = true)}>Hidden</button>
+    {/if}
   </div>
   <select bind:value={app.filter.sort_by} title="Sort videos by">
     {#if app.filter.playlist_id !== null}<option value="default">Sort: Playlist order</option>{/if}
@@ -167,11 +205,11 @@
     {/if}
   </div>
 {:else if app.settings.library_view === 'table'}
-  <VideoTable videos={app.videos} onplay={play} onmanage={(v) => (managingId = v.id)} playlist={playlistCtx} />
+  <VideoTable videos={app.videos} onplay={play} onmanage={(v) => (managingId = v.id)} oncontext={openMenu} playlist={playlistCtx} />
 {:else}
   <div class="grid">
     {#each app.videos as v (v.id)}
-      <VideoCard video={v} onplay={() => play(v)} onmanage={() => (managingId = v.id)} playlist={playlistCtx} />
+      <VideoCard video={v} onplay={() => play(v)} onmanage={() => (managingId = v.id)} oncontext={(e) => openMenu(e, v)} playlist={playlistCtx} />
     {/each}
   </div>
 {/if}
@@ -183,6 +221,24 @@
     <span class="muted">Page {app.paging.page + 1} of {pageCount}</span>
     <button class="ghost" disabled={app.paging.page >= pageCount - 1} onclick={() => setPage(app.paging.page + 1)} title="Next page"><ChevronRight size={16} /></button>
     <button class="ghost" disabled={app.paging.page >= pageCount - 1} onclick={() => setPage(pageCount - 1)} title="Last page"><ChevronsRight size={16} /></button>
+  </div>
+{/if}
+
+{#if menu}
+  {@const v = menu.video}
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="menu-backdrop" onclick={closeMenu} oncontextmenu={(e) => { e.preventDefault(); closeMenu(); }}>
+    <div class="menu card" style:left="{menu.x}px" style:top="{menu.y}px" role="menu" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+      <button class="ghost" role="menuitem" onclick={() => menuDo(() => play(v))}><Play size={14} /> Play</button>
+      <button class="ghost" role="menuitem" onclick={() => menuDo(() => toggleWatched(v))}>
+        {#if v.watched}<EyeOff size={14} /> Mark as unwatched{:else}<Eye size={14} /> Mark as watched{/if}
+      </button>
+      <button class="ghost" role="menuitem" onclick={() => menuDo(() => (managingId = v.id))}><Tag size={14} /> Tags & playlists</button>
+      <hr />
+      <button class="ghost" role="menuitem" onclick={() => menuDo(() => setHidden(v, !v.hidden))}>
+        {#if v.hidden}<Eye size={14} /> Unhide video{:else}<EyeOff size={14} /> Hide video{/if}
+      </button>
+    </div>
   </div>
 {/if}
 
@@ -198,6 +254,10 @@
   .hint { font-size: 12px; margin: -4px 0 12px; }
   .tagbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+  .menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+  .menu { position: fixed; min-width: 200px; padding: 5px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 8px 30px #0008; }
+  .menu button { justify-content: flex-start; display: flex; align-items: center; gap: 9px; text-align: left; padding: 7px 10px; }
+  .menu hr { border: 0; border-top: 1px solid var(--border); margin: 3px 0; width: 100%; }
   .pager { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 16px 0 4px; }
   .empty { text-align: center; padding: 40px; color: var(--muted); }
 </style>

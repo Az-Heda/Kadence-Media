@@ -13,8 +13,8 @@
   import EyeOff from '@lucide/svelte/icons/eye-off';
   import Tag from '@lucide/svelte/icons/tag';
 
-  let { videos, onplay, onmanage, playlist = null }: {
-    videos: Video[]; onplay: (v: Video) => void; onmanage: (v: Video) => void; playlist?: PlaylistCtx | null;
+  let { videos, onplay, onmanage, oncontext, playlist = null }: {
+    videos: Video[]; onplay: (v: Video) => void; onmanage: (v: Video) => void; oncontext?: (e: MouseEvent, v: Video) => void; playlist?: PlaylistCtx | null;
   } = $props();
 
   const folderOf = (v: Video) => v.path.split(/[\\/]/).slice(0, -1).join('/') || '/';
@@ -95,7 +95,7 @@
     </thead>
     <tbody>
       {#each videos as v (v.id)}
-        <tr class="{dropMark(v.id)}" class:watched={v.watched} ondblclick={() => onplay(v)}
+        <tr class="{dropMark(v.id)}" class:watched={v.watched} class:hidden-video={v.hidden} ondblclick={() => onplay(v)} oncontextmenu={(e) => oncontext?.(e, v)}
           draggable={reorder ? 'true' : undefined}
           {...reorder ? dragHandlers(v.id, 'y', playlist!.onmove) : {}}>
           {#if reorder}
@@ -166,5 +166,6 @@
   .title { font-weight: 600; }
   .tags { display: flex; flex-wrap: wrap; gap: 5px; }
   tr.watched .title { opacity: .65; }
+  tr.hidden-video { opacity: .55; }
   td button { padding: 4px 8px; }
 </style>

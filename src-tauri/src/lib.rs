@@ -160,6 +160,7 @@ pub fn run() {
             commands::toggle_watched_matching,
             commands::player_set_speed,
             commands::set_watched,
+            commands::set_hidden,
             commands::set_rating,
             commands::indexing_status,
             commands::list_tags,

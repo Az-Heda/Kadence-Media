@@ -179,23 +179,28 @@ fn make_handler(app: AppHandle, state: Arc<Mutex<PlayerState>>) -> Arc<dyn Fn(Mp
     })
 }
 
-/// Pick the mpv executable: explicit setting, then one bundled next to our
-/// executable (handy on Windows), then `mpv` from PATH.
+/// Pick the mpv executable (see `resolve_tool`).
 pub fn resolve_mpv(setting: &str) -> String {
+    resolve_tool("mpv", setting)
+}
+
+/// Pick an executable: explicit setting, then one bundled next to our
+/// executable (handy on Windows), then the bare name from PATH.
+pub fn resolve_tool(tool: &str, setting: &str) -> String {
     if !setting.trim().is_empty() {
         return setting.trim().to_string();
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let name = if cfg!(windows) { "mpv.exe" } else { "mpv" };
-            for cand in [dir.join(name), dir.join("mpv").join(name)] {
+            let name = if cfg!(windows) { format!("{tool}.exe") } else { tool.to_string() };
+            for cand in [dir.join(&name), dir.join(tool).join(&name)] {
                 if cand.is_file() {
                     return cand.to_string_lossy().into_owned();
                 }
             }
         }
     }
-    "mpv".to_string()
+    tool.to_string()
 }
 
 pub fn json_f64(v: f64) -> Value {

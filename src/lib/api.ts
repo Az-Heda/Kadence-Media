@@ -6,7 +6,7 @@ export interface Tag extends VideoTag { video_count: number }
 export interface Playlist { id: number; name: string; video_count: number }
 export interface Video {
   id: number; path: string; folder_id: number; title: string;
-  size: number; modified: number; created: number; watched: boolean; rating: number; duration: number | null; thumb: boolean;
+  size: number; modified: number; created: number; watched: boolean; hidden: boolean; rating: number; duration: number | null; thumb: boolean;
   tags: VideoTag[]; playlist_ids: number[];
 }
 export interface VideoPage { items: Video[]; total: number; page: number; page_size: number }
@@ -15,7 +15,7 @@ export type SortBy = 'default' | 'title' | 'path' | 'created' | 'size' | 'durati
 export interface VideoFilter {
   sort_by?: SortBy; sort_desc?: boolean;
   search?: string; tag_ids?: number[]; playlist_id?: number | null;
-  watched?: boolean | null; folder_id?: number | null;
+  watched?: boolean | null; folder_id?: number | null; hidden?: 'exclude' | 'only' | 'any';
 }
 export interface ScanReport { added: number; removed: number; total: number; rule_matches: number }
 export interface Rule {
@@ -28,7 +28,7 @@ export interface PlayerState {
   position: number; duration: number; volume: number; muted: boolean; speed: number;
 }
 export type Settings = {
-  volume_max: string; volume: string; primary_color: string; embed_video: string; mpv_path: string;
+  volume_max: string; volume: string; primary_color: string; embed_video: string; mpv_path: string; ffmpeg_path: string; show_hidden: string;
   library_view: string; default_folder_id: string; escape_action: string;
   grid_page_size: string; table_page_size: string; col_widths: string; table_columns: string; saved_themes: string;
   bg_color: string; surface_color: string; surface2_color: string; border_color: string; text_color: string; muted_color: string;
@@ -56,6 +56,7 @@ export const api = {
   indexingStatus: () => invoke<IndexingProgress>('indexing_status'),
   toggleWatchedMatching: (filter: VideoFilter) => invoke<boolean>('toggle_watched_matching', { filter }),
   setRating: (id: number, rating: number) => invoke<void>('set_rating', { id, rating }),
+  setHidden: (id: number, hidden: boolean) => invoke<void>('set_hidden', { id, hidden }),
   setWatched: (id: number, watched: boolean) => invoke<void>('set_watched', { id, watched }),
 
   listTags: () => invoke<Tag[]>('list_tags'),

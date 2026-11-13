@@ -41,6 +41,8 @@ pub struct Video {
     /// File creation time (unix seconds; falls back to modified time where unsupported).
     pub created: i64,
     pub watched: bool,
+    /// Hidden from the library unless "show hidden" is on.
+    pub hidden: bool,
     /// 0 = unrated, otherwise 0.5..=5.0 in steps of 0.5.
     pub rating: f64,
     /// Seconds. None = not indexed yet; Some(0.0) = could not be determined.
@@ -67,9 +69,23 @@ pub enum SortBy {
     Rating,
 }
 
+/// How hidden videos take part in a listing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HiddenMode {
+    /// Normal library: hidden videos are left out.
+    #[default]
+    Exclude,
+    /// Only the hidden videos.
+    Only,
+    /// Everything, hidden or not (internal operations such as playlist reordering).
+    Any,
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct VideoFilter {
+    pub hidden: HiddenMode,
     pub sort_by: SortBy,
     pub sort_desc: bool,
     /// Case-insensitive substring match on title or path.
