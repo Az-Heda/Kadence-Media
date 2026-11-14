@@ -5,7 +5,8 @@ export const en = {
   // ---- shell / navigation
   'nav.library': 'Library',
   'nav.folders': 'Folders',
-  'nav.collections': 'Tags & Playlists',
+  'nav.playlists': 'Playlists',
+  'nav.tags': 'Tags',
   'nav.rules': 'Automatic Rules',
   'nav.themes': 'Themes',
   'nav.settings': 'Settings',
@@ -134,8 +135,15 @@ export const en = {
   'folders.confirm_body_other': 'Removing the folder deletes its {n} videos from the library, and <b>all the data attached to them will be permanently lost</b>: watched status, ratings, tags and playlist memberships. Your files on disk are not touched.',
 
   // ---- tags & playlists
-  'collections.title': 'Tags & Playlists',
-  'collections.intro': 'Tags label videos (many per video, used as filters). Playlists are ordered lists you can play in sequence.',
+  'collections.intro_tags': 'Tags label videos (many per video, used as filters).',
+  'collections.intro_playlists': 'Playlists are ordered lists you can play in sequence.',
+  'collections.create_tag': 'New tag',
+  'collections.create_playlist': 'New playlist',
+  'collections.search': 'Search…',
+  'collections.name': 'Name',
+  'collections.color': 'Color',
+  'collections.videos': 'Videos',
+  'collections.no_results': 'No matches.',
   'collections.confirm_tag_title': 'Delete this tag?',
   'collections.confirm_playlist_title': 'Delete this playlist?',
   'collections.confirm_tag_one': '<b>{name}</b> will be deleted and removed from its {n} video. This cannot be undone.',

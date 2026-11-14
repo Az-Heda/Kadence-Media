@@ -6,7 +6,7 @@
   import { t, type Key } from './lib/i18n.svelte';
   import Library from './pages/Library.svelte';
   import Folders from './pages/Folders.svelte';
-  import Collections from './pages/Collections.svelte';
+  import Collection from './pages/Collection.svelte';
   import Themes from './pages/Themes.svelte';
   import SettingsPage from './pages/Settings.svelte';
   import Player from './pages/Player.svelte';
@@ -15,6 +15,7 @@
   import LayoutGrid from '@lucide/svelte/icons/layout-grid';
   import FolderOpen from '@lucide/svelte/icons/folder-open';
   import Tags from '@lucide/svelte/icons/tags';
+  import ListVideo from '@lucide/svelte/icons/list-video';
   import WandSparkles from '@lucide/svelte/icons/wand-sparkles';
   import Settings2 from '@lucide/svelte/icons/settings';
   import Palette from '@lucide/svelte/icons/palette';
@@ -26,7 +27,8 @@
   const allPages: { id: Page; label: Key; icon: typeof LayoutGrid }[] = [
     { id: 'library', label: 'nav.library', icon: LayoutGrid },
     { id: 'folders', label: 'nav.folders', icon: FolderOpen },
-    { id: 'collections', label: 'nav.collections', icon: Tags },
+    { id: 'playlists', label: 'nav.playlists', icon: ListVideo },
+    { id: 'tags', label: 'nav.tags', icon: Tags },
     { id: 'rules', label: 'nav.rules', icon: WandSparkles },
   ];
   // Without folders there is nothing to show: hide the Library and land on Folders.
@@ -126,7 +128,8 @@
         <main>
           {#if app.page === 'library'}<Library />
           {:else if app.page === 'folders'}<Folders />
-          {:else if app.page === 'collections'}<Collections />
+          {:else if app.page === 'playlists'}<Collection kind="playlist" />
+          {:else if app.page === 'tags'}<Collection kind="tag" />
           {:else if app.page === 'rules'}<Rules />
           {:else if app.page === 'themes'}<Themes />
           {:else}<SettingsPage />{/if}

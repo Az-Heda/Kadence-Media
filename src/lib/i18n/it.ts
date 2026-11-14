@@ -5,7 +5,8 @@ export const it: Dict = {
   // ---- shell / navigation
   'nav.library': 'Libreria',
   'nav.folders': 'Cartelle',
-  'nav.collections': 'Tag e playlist',
+  'nav.playlists': 'Playlist',
+  'nav.tags': 'Tag',
   'nav.rules': 'Regole automatiche',
   'nav.themes': 'Temi',
   'nav.settings': 'Impostazioni',
@@ -134,8 +135,15 @@ export const it: Dict = {
   'folders.confirm_body_other': 'Rimuovendo la cartella elimini dalla libreria i suoi {n} video, e <b>tutti i dati collegati andranno persi in modo permanente</b>: stato di visione, valutazioni, tag e appartenenza alle playlist. I tuoi file su disco non vengono toccati.',
 
   // ---- tags & playlists
-  'collections.title': 'Tag e playlist',
-  'collections.intro': 'I tag etichettano i video (più tag per video, usati come filtri). Le playlist sono elenchi ordinati che puoi riprodurre in sequenza.',
+  'collections.intro_tags': 'I tag etichettano i video (più tag per video, usati come filtri).',
+  'collections.intro_playlists': 'Le playlist sono elenchi ordinati che puoi riprodurre in sequenza.',
+  'collections.create_tag': 'Nuovo tag',
+  'collections.create_playlist': 'Nuova playlist',
+  'collections.search': 'Cerca…',
+  'collections.name': 'Nome',
+  'collections.color': 'Colore',
+  'collections.videos': 'Video',
+  'collections.no_results': 'Nessun risultato.',
   'collections.confirm_tag_title': 'Eliminare questo tag?',
   'collections.confirm_playlist_title': 'Eliminare questa playlist?',
   'collections.confirm_tag_one': '<b>{name}</b> verrà eliminato e rimosso dal suo {n} video. L’operazione non può essere annullata.',
