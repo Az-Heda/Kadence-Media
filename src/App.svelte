@@ -3,6 +3,7 @@
   import { listen } from '@tauri-apps/api/event';
   import { api, type IndexingProgress, type PlayerState } from './lib/api';
   import { app, defaultFolderId, loadSettings, refreshAll, playNext, queueIndex, guarded, toast, type Page } from './lib/store.svelte';
+  import { t, type Key } from './lib/i18n.svelte';
   import Library from './pages/Library.svelte';
   import Folders from './pages/Folders.svelte';
   import Collections from './pages/Collections.svelte';
@@ -22,11 +23,11 @@
 
   const surface = new URLSearchParams(location.search).get('surface') ?? 'overlay';
 
-  const allPages: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
-    { id: 'library', label: 'Library', icon: LayoutGrid },
-    { id: 'folders', label: 'Folders', icon: FolderOpen },
-    { id: 'collections', label: 'Tags & Playlists', icon: Tags },
-    { id: 'rules', label: 'Automatic Rules', icon: WandSparkles },
+  const allPages: { id: Page; label: Key; icon: typeof LayoutGrid }[] = [
+    { id: 'library', label: 'nav.library', icon: LayoutGrid },
+    { id: 'folders', label: 'nav.folders', icon: FolderOpen },
+    { id: 'collections', label: 'nav.collections', icon: Tags },
+    { id: 'rules', label: 'nav.rules', icon: WandSparkles },
   ];
   // Without folders there is nothing to show: hide the Library and land on Folders.
   const pages = $derived(allPages.filter((p) => p.id !== 'library' || app.folders.length > 0));
@@ -35,9 +36,9 @@
     if (loaded && app.folders.length === 0 && app.page === 'library') app.page = 'folders';
   });
   // Pinned to the bottom of the sidebar.
-  const bottomPages: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
-    { id: 'themes', label: 'Themes', icon: Palette },
-    { id: 'settings', label: 'Settings', icon: Settings2 },
+  const bottomPages: { id: Page; label: Key; icon: typeof LayoutGrid }[] = [
+    { id: 'themes', label: 'nav.themes', icon: Palette },
+    { id: 'settings', label: 'nav.settings', icon: Settings2 },
   ];
 
   $effect(() => {
@@ -79,7 +80,7 @@
           if (v) v.thumb = true;
         }
       }),
-      listen<string>('indexing-error', (e) => toast(`Background indexing problem: ${e.payload}`, true)),
+      listen<string>('indexing-error', (e) => toast(t('app.indexing_error', { msg: e.payload }), true)),
       listen<{ video_id: number | null; reason: string }>('player-ended', (e) => {
         // Auto-advance through the queue (playlist playback) when a video finishes.
         if (e.payload.reason === 'eof' && e.payload.video_id != null) {
@@ -101,19 +102,19 @@
         <div class="brand"><span class="logo"><Clapperboard size={20} /></span> Kadence Media</div>
         {#each pages as p}
           <button class="nav ghost" class:active={app.page === p.id} onclick={() => (app.page = p.id)}>
-            <p.icon size={18} />{p.label}
+            <p.icon size={18} />{t(p.label)}
           </button>
         {/each}
         <span class="spacer"></span>
         {#if app.indexing.running}
-          <div class="indexing" title="Reading video durations in the background">
+          <div class="indexing" title={t('nav.indexing_title')}>
             <span class="spin"><LoaderCircle size={15} /></span>
-            Reading durations {app.indexing.done}/{app.indexing.total}
+            {t('nav.indexing', { done: app.indexing.done, total: app.indexing.total })}
           </div>
         {/if}
         {#each bottomPages as p}
           <button class="nav ghost" class:active={app.page === p.id} onclick={() => (app.page = p.id)}>
-            <p.icon size={18} />{p.label}
+            <p.icon size={18} />{t(p.label)}
           </button>
         {/each}
       </nav>

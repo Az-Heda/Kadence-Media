@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fmtSize, type Video } from '../lib/api';
   import { setRating, toggleWatched } from '../lib/store.svelte';
+  import { t } from '../lib/i18n.svelte';
   import Thumb from './Thumb.svelte';
   import StarRating from './StarRating.svelte';
   import { dragHandlers, dropMark, type PlaylistCtx } from '../lib/dnd';
@@ -31,13 +32,13 @@
     {/if}
   </div>
   <div class="actions">
-    <button class="ghost" onclick={() => toggleWatched(video)} title="Toggle watched">
-      {#if video.watched}<Eye size={14} /> Watched{:else}<EyeOff size={14} /> Unwatched{/if}
+    <button class="ghost" onclick={() => toggleWatched(video)} title={t('common.toggle_watched')}>
+      {#if video.watched}<Eye size={14} /> {t('common.watched')}{:else}<EyeOff size={14} /> {t('common.unwatched')}{/if}
     </button>
     {#if playlist}
-      <button class="ghost danger" onclick={() => playlist.onremove(video.id)} title="Remove from this playlist"><ListX size={14} /></button>
+      <button class="ghost danger" onclick={() => playlist.onremove(video.id)} title={t('playlist.remove')}><ListX size={14} /></button>
     {/if}
-    <button class="ghost" onclick={onmanage} title="Tags & playlists"><Tag size={14} /> Organize</button>
+    <button class="ghost" onclick={onmanage} title={t('common.tags_playlists')}><Tag size={14} /> {t('card.organize')}</button>
   </div>
 </div>
 

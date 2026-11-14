@@ -5,8 +5,13 @@
   import Table2 from '@lucide/svelte/icons/table-2';
   import GripVertical from '@lucide/svelte/icons/grip-vertical';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
-  import { columnDef, resolveColumns } from '../lib/columns';
+  import { colName, resolveColumns } from '../lib/columns';
+  import { DATE_SEPARATORS, LANGUAGES, fmtDateTime, t, type Key } from '../lib/i18n.svelte';
   import { dragHandlers, dropMark } from '../lib/dnd';
+
+  // Preview of the date/time format (a fixed sample moment, so it is stable while the settings change).
+  const SAMPLE = Math.floor(new Date(2026, 2, 7, 15, 4, 9).getTime() / 1000);
+  const dateOrders: [string, Key][] = [['dmy', 'settings.order_dmy'], ['mdy', 'settings.order_mdy'], ['ymd', 'settings.order_ymd']];
 
   let volMax = $state(Number(app.settings.volume_max) || 300);
   let mpvPath = $state(app.settings.mpv_path);
@@ -52,15 +57,76 @@
   }
 </script>
 
-<h1>Settings</h1>
-<div class="muted intro">Changes are saved automatically.</div>
+<h1>{t('settings.title')}</h1>
+<div class="muted intro">{t('settings.intro')}</div>
 
 <section class="card">
-  <h2>Audio</h2>
+  <h2>{t('settings.locale_card')}</h2>
   <div class="field">
     <div class="grow">
-      <div class="label">Maximum volume</div>
-      <div class="muted">Boost quiet videos beyond 100%. The volume slider in the player goes up to this value.</div>
+      <div class="label">{t('settings.language')}</div>
+      <div class="muted">{t('settings.language_hint')}</div>
+    </div>
+    <select value={app.settings.language} onchange={(e) => saveSetting('language', e.currentTarget.value)}>
+      <option value="system">{t('settings.lang_system')}</option>
+      {#each LANGUAGES as l (l.id)}<option value={l.id}>{l.name}</option>{/each}
+    </select>
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">{t('settings.date_order')}</div>
+      <div class="muted">{t('settings.date_order_hint')}</div>
+    </div>
+    <select value={app.settings.date_order} onchange={(e) => saveSetting('date_order', e.currentTarget.value)}>
+      {#each dateOrders as [val, label]}<option value={val}>{t(label)}</option>{/each}
+    </select>
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">{t('settings.date_separator')}</div>
+      <div class="muted">{t('settings.date_separator_hint')}</div>
+    </div>
+    <select value={app.settings.date_separator} onchange={(e) => saveSetting('date_separator', e.currentTarget.value)}>
+      {#each DATE_SEPARATORS as sep}<option value={sep}>{sep}</option>{/each}
+    </select>
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">{t('settings.time_format')}</div>
+      <div class="muted">{t('settings.time_format_hint')}</div>
+    </div>
+    <select value={app.settings.time_format} onchange={(e) => saveSetting('time_format', e.currentTarget.value)}>
+      <option value="24h">{t('settings.time_24')}</option>
+      <option value="12h">{t('settings.time_12')}</option>
+    </select>
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">{t('settings.show_seconds')}</div>
+      <div class="muted">{t('settings.show_seconds_hint')}</div>
+    </div>
+    <input type="checkbox" checked={app.settings.time_seconds !== 'false'}
+      onchange={(e) => saveSetting('time_seconds', String(e.currentTarget.checked))} />
+  </div>
+  <div class="field">
+    <div class="grow">
+      <div class="label">{t('settings.layout')}</div>
+      <div class="muted">{t('settings.layout_hint')}</div>
+    </div>
+    <select value={app.settings.date_layout} onchange={(e) => saveSetting('date_layout', e.currentTarget.value)}>
+      <option value="time_first">{t('settings.layout_time_first')}</option>
+      <option value="date_first">{t('settings.layout_date_first')}</option>
+    </select>
+  </div>
+  <div class="muted hint">{t('settings.preview')}: <code>{fmtDateTime(SAMPLE)}</code></div>
+</section>
+
+<section class="card">
+  <h2>{t('settings.audio')}</h2>
+  <div class="field">
+    <div class="grow">
+      <div class="label">{t('settings.max_volume')}</div>
+      <div class="muted">{t('settings.max_volume_hint')}</div>
     </div>
     <div class="row">
       <input type="range" min="100" max="1000" step="25" bind:value={volMax} onchange={commitVolMax} style="width:180px" />
@@ -68,126 +134,126 @@
       <span>%</span>
     </div>
   </div>
-  <div class="muted hint">Current limit: {volumeMax()}%. Above ~200% some videos may distort.</div>
+  <div class="muted hint">{t('settings.volume_limit', { limit: volumeMax() })}</div>
 </section>
 
 <section class="card">
-  <h2>Library</h2>
+  <h2>{t('settings.library')}</h2>
   <div class="field">
     <div class="grow">
-      <div class="label">Library view</div>
-      <div class="muted">Show videos as a grid of cards or as a table.</div>
+      <div class="label">{t('settings.view')}</div>
+      <div class="muted">{t('settings.view_hint')}</div>
     </div>
     <div class="seg">
       <button class:on={app.settings.library_view !== 'table'} onclick={() => saveSetting('library_view', 'grid')}>
-        <LayoutGrid size={15} /> Grid
+        <LayoutGrid size={15} /> {t('settings.grid')}
       </button>
       <button class:on={app.settings.library_view === 'table'} onclick={() => saveSetting('library_view', 'table')}>
-        <Table2 size={15} /> Table
+        <Table2 size={15} /> {t('settings.table')}
       </button>
     </div>
   </div>
   <div class="field">
     <div class="grow">
-      <div class="label">Videos per page (grid)</div>
-      <div class="muted">How many cards the library shows on each page in grid view.</div>
+      <div class="label">{t('settings.page_grid')}</div>
+      <div class="muted">{t('settings.page_grid_hint')}</div>
     </div>
     <input type="number" min="1" max="1000" step="10" bind:value={gridSize} style="width:84px"
       onchange={() => commitPageSize('grid_page_size', gridSize, 60)} />
   </div>
   <div class="field">
     <div class="grow">
-      <div class="label">Videos per page (table)</div>
-      <div class="muted">How many rows the library shows on each page in table view.</div>
+      <div class="label">{t('settings.page_table')}</div>
+      <div class="muted">{t('settings.page_table_hint')}</div>
     </div>
     <input type="number" min="1" max="1000" step="5" bind:value={tableSize} style="width:84px"
       onchange={() => commitPageSize('table_page_size', tableSize, 20)} />
   </div>
   <div class="field">
     <div class="grow">
-      <div class="label">Show hidden videos</div>
-      <div class="muted">Adds a "Hidden" tab to the library to see the videos you hid from their right-click menu. They never appear in the other tabs.</div>
+      <div class="label">{t('settings.show_hidden')}</div>
+      <div class="muted">{t('settings.show_hidden_hint')}</div>
     </div>
     <input type="checkbox" checked={app.settings.show_hidden === 'true'}
       onchange={(e) => { saveSetting('show_hidden', String(e.currentTarget.checked)); if (!e.currentTarget.checked) app.filter.hidden_only = false; }} />
   </div>
   <div class="field">
     <div class="grow">
-      <div class="label">Table column widths</div>
-      <div class="muted">Drag a column's right edge in the table to resize it; widths are remembered.</div>
+      <div class="label">{t('settings.col_widths')}</div>
+      <div class="muted">{t('settings.col_widths_hint')}</div>
     </div>
-    <button disabled={!app.settings.col_widths} onclick={() => saveSetting('col_widths', '')}>Reset column widths</button>
+    <button disabled={!app.settings.col_widths} onclick={() => saveSetting('col_widths', '')}>{t('settings.reset_widths')}</button>
   </div>
 </section>
 
 {#if app.settings.library_view === 'table'}
   <section class="card">
-    <h2>Table columns</h2>
-    <div class="muted hint">Choose which columns the library table shows; drag the rows to change their order. The drag handle used to reorder playlists appears automatically.</div>
+    <h2>{t('settings.table_columns')}</h2>
+    <div class="muted hint">{t('settings.columns_hint')}</div>
     <div class="cols">
       {#each columns as c, i (c.id)}
         <div class="colrow {dropMark(i)}" draggable="true" {...dragHandlers(i, 'y', moveColumn)}>
-          <span class="handle" title="Drag to reorder"><GripVertical size={16} /></span>
-          <input type="checkbox" checked={c.visible} onchange={(e) => setColumnVisible(i, e.currentTarget.checked)} aria-label="Show {columnDef(c.id).name}" />
-          <span class="grow" class:off={!c.visible}>{columnDef(c.id).name}</span>
+          <span class="handle" title={t('dnd.drag_reorder')}><GripVertical size={16} /></span>
+          <input type="checkbox" checked={c.visible} onchange={(e) => setColumnVisible(i, e.currentTarget.checked)} aria-label={t('settings.show_column', { name: colName(c.id) })} />
+          <span class="grow" class:off={!c.visible}>{colName(c.id)}</span>
         </div>
       {/each}
     </div>
     <div class="row" style="margin-top:10px">
-      <button disabled={!columnsCustom} onclick={() => saveSetting('table_columns', '')}><RotateCcw size={14} /> Reset order and visibility</button>
+      <button disabled={!columnsCustom} onclick={() => saveSetting('table_columns', '')}><RotateCcw size={14} /> {t('settings.reset_columns')}</button>
     </div>
   </section>
 {/if}
 
 <section class="card">
-  <h2>Player</h2>
+  <h2>{t('settings.player')}</h2>
   <div class="field">
     <div class="grow">
-      <div class="label">Escape key</div>
-      <div class="muted">What <kbd>Esc</kbd> does in the player (it always leaves fullscreen first).</div>
+      <div class="label">{t('settings.escape_key')}</div>
+      <div class="muted">{@html t('settings.escape_hint')}</div>
     </div>
     <select value={app.settings.escape_action} onchange={(e) => saveSetting('escape_action', e.currentTarget.value)}>
-      <option value="stop">Stop the video and return to the library</option>
-      <option value="back">Return to the library, keep playing</option>
-      <option value="none">Do nothing else</option>
+      <option value="stop">{t('settings.esc_stop')}</option>
+      <option value="back">{t('settings.esc_back')}</option>
+      <option value="none">{t('settings.esc_none')}</option>
     </select>
   </div>
 </section>
 
 <section class="card">
-  <h2>Playback engine</h2>
+  <h2>{t('settings.engine')}</h2>
   <div class="field">
     <div class="grow">
-      <div class="label">Embed video in the window</div>
-      <div class="muted">Turn off if the video doesn't appear: mpv will use its own window instead.</div>
+      <div class="label">{t('settings.embed')}</div>
+      <div class="muted">{t('settings.embed_hint')}</div>
     </div>
     <input type="checkbox" checked={app.settings.embed_video === 'true'}
       onchange={(e) => saveSetting('embed_video', String(e.currentTarget.checked))} />
   </div>
   <div class="field">
     <div class="grow">
-      <div class="label">mpv executable</div>
-      <div class="muted">Leave empty to use the one next to the app, or <code>mpv</code> from PATH.</div>
+      <div class="label">{t('settings.mpv')}</div>
+      <div class="muted">{@html t('settings.mpv_hint')}</div>
     </div>
     <input type="text" placeholder="mpv" bind:value={mpvPath} style="width:260px"
-      onchange={() => { saveSetting('mpv_path', mpvPath.trim()); toast('Applies the next time the player starts'); }} />
+      onchange={() => { saveSetting('mpv_path', mpvPath.trim()); toast(t('settings.mpv_applied')); }} />
   </div>
   <div class="field">
     <div class="grow">
-      <div class="label">ffmpeg executable</div>
-      <div class="muted">Used for thumbnails. Leave empty to use the one next to the app, or <code>ffmpeg</code> from PATH.</div>
+      <div class="label">{t('settings.ffmpeg')}</div>
+      <div class="muted">{@html t('settings.ffmpeg_hint')}</div>
     </div>
     <input type="text" placeholder="ffmpeg" bind:value={ffmpegPath} style="width:260px"
-      onchange={() => { saveSetting('ffmpeg_path', ffmpegPath.trim()); toast('Applies the next time thumbnails are generated'); }} />
+      onchange={() => { saveSetting('ffmpeg_path', ffmpegPath.trim()); toast(t('settings.ffmpeg_applied')); }} />
   </div>
 </section>
 
 <section class="card">
-  <h2>Database</h2>
+  <h2>{t('settings.database')}</h2>
   <div class="field">
     <div class="grow">
-      <div class="label">Library file</div>
-      <div class="muted">Stored next to the executable. If that folder isn't writable the app falls back to its user data folder.</div>
+      <div class="label">{t('settings.db_file')}</div>
+      <div class="muted">{t('settings.db_hint')}</div>
     </div>
   </div>
   <code class="dbpath">{dbPath}</code>
@@ -211,6 +277,6 @@
   .label { font-weight: 600; margin-bottom: 2px; }
   .hint { font-size: 12px; margin-top: 4px; }
   input[type='checkbox'] { width: 20px; height: 20px; accent-color: var(--primary); }
-  kbd { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; font-size: 12px; }
-  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  :global(kbd) { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+  :global(code) { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 </style>

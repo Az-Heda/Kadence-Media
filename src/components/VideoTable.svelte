@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { fmtDateTime, fmtSize, fmtTime, type SortBy, type Video } from '../lib/api';
+  import { fmtSize, fmtTime, type SortBy, type Video } from '../lib/api';
+  import { fmtDateTime, t } from '../lib/i18n.svelte';
   import { app, saveSetting, setRating, setSort, toggleWatched } from '../lib/store.svelte';
-  import { COLUMNS, DRAG_WIDTH, columnDef, resolveColumns } from '../lib/columns';
+  import { COLUMNS, DRAG_WIDTH, colLabel, columnDef, resolveColumns } from '../lib/columns';
   import StarRating from './StarRating.svelte';
   import { dragHandlers, dropMark, type PlaylistCtx } from '../lib/dnd';
   import GripVertical from '@lucide/svelte/icons/grip-vertical';
@@ -66,7 +67,7 @@
 
 {#snippet grip(key: string)}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <span class="grip-h" onpointerdown={(e) => startResize(e, key)} ondblclick={() => resetWidth(key)} title="Drag to resize, double-click to reset"></span>
+  <span class="grip-h" onpointerdown={(e) => startResize(e, key)} ondblclick={() => resetWidth(key)} title={t('table.resize')}></span>
 {/snippet}
 
 <div class="wrap card">
@@ -82,12 +83,12 @@
           <th class:num={c.num}>
             {#if c.sort}
               <button class="sort" class:active={app.filter.sort_by === c.sort} onclick={() => setSort(c.sort as SortBy)}>
-                {c.label}
+                {colLabel(c.id)}
                 {#if app.filter.sort_by === c.sort}
                   {#if app.filter.sort_desc}<ArrowDown size={13} />{:else}<ArrowUp size={13} />{/if}
                 {/if}
               </button>
-            {:else}{c.label}{/if}
+            {:else}{colLabel(c.id)}{/if}
             {@render grip(c.id)}
           </th>
         {/each}
@@ -99,14 +100,14 @@
           draggable={reorder ? 'true' : undefined}
           {...reorder ? dragHandlers(v.id, 'y', playlist!.onmove) : {}}>
           {#if reorder}
-            <td class="cell"><span class="grip" title="Drag to reorder"><GripVertical size={15} /></span></td>
+            <td class="cell"><span class="grip" title={t('dnd.drag_reorder')}><GripVertical size={15} /></span></td>
           {/if}
           {#each shown as c (c.id)}
             {#if c.id === 'play'}
-              <td class="cell"><button class="ghost" onclick={() => onplay(v)} title="Play"><Play size={15} fill="currentColor" /></button></td>
+              <td class="cell"><button class="ghost" onclick={() => onplay(v)} title={t('common.play')}><Play size={15} fill="currentColor" /></button></td>
             {:else if c.id === 'watched'}
               <td class="cell">
-                <button class="ghost" onclick={() => toggleWatched(v)} title="Toggle watched">
+                <button class="ghost" onclick={() => toggleWatched(v)} title={t('common.toggle_watched')}>
                   {#if v.watched}<Eye size={15} />{:else}<EyeOff size={15} />{/if}
                 </button>
               </td>
@@ -133,9 +134,9 @@
             {:else if c.id === 'actions'}
               <td class="cell">
                 {#if playlist}
-                  <button class="ghost danger" onclick={() => playlist.onremove(v.id)} title="Remove from this playlist"><ListX size={15} /></button>
+                  <button class="ghost danger" onclick={() => playlist.onremove(v.id)} title={t('playlist.remove')}><ListX size={15} /></button>
                 {/if}
-                <button class="ghost" onclick={() => onmanage(v)} title="Tags & playlists"><Tag size={15} /></button>
+                <button class="ghost" onclick={() => onmanage(v)} title={t('common.tags_playlists')}><Tag size={15} /></button>
               </td>
             {/if}
           {/each}

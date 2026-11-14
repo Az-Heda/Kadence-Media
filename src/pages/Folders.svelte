@@ -2,6 +2,7 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { api } from '../lib/api';
   import { app, guarded, refreshAll, setDefaultFolder, toast } from '../lib/store.svelte';
+  import { t, th } from '../lib/i18n.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import FolderOpen from '@lucide/svelte/icons/folder-open';
   import FolderPlus from '@lucide/svelte/icons/folder-plus';
@@ -12,12 +13,12 @@
   let busy = $state(false);
 
   async function add() {
-    const dir = await open({ directory: true, multiple: false, title: 'Choose a folder with videos' });
+    const dir = await open({ directory: true, multiple: false, title: t('folders.choose') });
     if (typeof dir !== 'string') return;
     busy = true;
     const f = await guarded(() => api.addFolder(dir));
     busy = false;
-    if (f) toast(`Added ${f.path}: ${f.video_count} videos`);
+    if (f) toast(t('folders.added', { path: f.path, n: f.video_count }));
     await refreshAll();
   }
 
@@ -36,7 +37,7 @@
     if (res) {
       const [r, errors] = res;
       if (errors.length) toast(errors.join('\n'), true);
-      else toast(`Scan done: ${r.added} added, ${r.removed} removed`);
+      else toast(t('common.scan_done', { added: r.added, removed: r.removed }));
     }
     await refreshAll();
   }
@@ -44,42 +45,38 @@
 
 <div class="head">
   <div class="grow">
-    <h1>Folders</h1>
-    <div class="muted">Every video in these folders (and their subfolders) shows up in the library.</div>
+    <h1>{t('folders.title')}</h1>
+    <div class="muted">{t('folders.subtitle')}</div>
   </div>
-  <button onclick={rescan} disabled={busy}><RefreshCw size={15} /> Rescan all</button>
-  <button class="primary" onclick={add} disabled={busy}><FolderPlus size={15} /> Add folder</button>
+  <button onclick={rescan} disabled={busy}><RefreshCw size={15} /> {t('folders.rescan_all')}</button>
+  <button class="primary" onclick={add} disabled={busy}><FolderPlus size={15} /> {t('folders.add')}</button>
 </div>
 
-{#if busy}<div class="muted">Scanning…</div>{/if}
+{#if busy}<div class="muted">{t('common.scanning')}</div>{/if}
 
 <div class="list">
   {#each app.folders as f (f.id)}
     <div class="card row">
       <span class="ico"><FolderOpen size={22} /></span>
       <div class="grow">
-        <div class="path">{f.path}{#if f.is_default}<span class="chip default">Default</span>{/if}</div>
-        <div class="muted">{f.video_count} video{f.video_count === 1 ? '' : 's'}</div>
+        <div class="path">{f.path}{#if f.is_default}<span class="chip default">{t('folders.default')}</span>{/if}</div>
+        <div class="muted">{t('common.videos', { n: f.video_count })}</div>
       </div>
       <button class:primary={f.is_default} onclick={() => setDefaultFolder(f.is_default ? null : f.id)}
-        title={f.is_default ? 'Stop using as default' : 'Show only this folder in the library by default'}>
-        <Star size={15} fill={f.is_default ? 'currentColor' : 'none'} /> {f.is_default ? 'Default' : 'Set as default'}
+        title={f.is_default ? t('folders.stop_default') : t('folders.default_title')}>
+        <Star size={15} fill={f.is_default ? 'currentColor' : 'none'} /> {f.is_default ? t('folders.default') : t('folders.set_default')}
       </button>
-      <button class="danger" onclick={() => (confirming = { id: f.id, path: f.path, count: f.video_count })}><Trash2 size={15} /> Remove</button>
+      <button class="danger" onclick={() => (confirming = { id: f.id, path: f.path, count: f.video_count })}><Trash2 size={15} /> {t('folders.remove')}</button>
     </div>
   {:else}
-    <div class="card empty">No folders yet. Click <b>Add folder</b> to pick one.</div>
+    <div class="card empty">{@html t('folders.empty')}</div>
   {/each}
 </div>
 
 {#if confirming}
-  <ConfirmDialog title="Remove this folder?" confirmLabel="Remove folder" onconfirm={() => remove(confirming!.id)} oncancel={() => (confirming = null)}>
+  <ConfirmDialog title={t('folders.confirm_title')} confirmLabel={t('folders.confirm_label')} onconfirm={() => remove(confirming!.id)} oncancel={() => (confirming = null)}>
     <div class="path">{confirming.path}</div>
-    <p>
-      Removing the folder deletes its {confirming.count} video{confirming.count === 1 ? '' : 's'} from the library,
-      and <b>all the data attached to them will be permanently lost</b>: watched status, ratings, tags and playlist memberships.
-      Your files on disk are not touched.
-    </p>
+    <p>{@html th('folders.confirm_body', { n: confirming.count })}</p>
   </ConfirmDialog>
 {/if}
 

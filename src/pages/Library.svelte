@@ -2,6 +2,7 @@
   import { api, type Video } from '../lib/api';
   import { app, defaultFolderId, guarded, libraryFilter, loadVideos, moveInPlaylist, pageSize, playQueue, refreshAll, removeFromPlaylist, setHidden, setPage, toast, toggleWatched, toggleWatchedAll } from '../lib/store.svelte';
   import type { PlaylistCtx } from '../lib/dnd';
+  import { t, type Key } from '../lib/i18n.svelte';
   import type { SortBy } from '../lib/api';
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
   import ArrowDown from '@lucide/svelte/icons/arrow-down';
@@ -90,7 +91,7 @@
     if (res) {
       const [r, errors] = res;
       if (errors.length) toast(errors.join('\n'), true);
-      else toast(`Scan done: ${r.added} added, ${r.removed} removed`);
+      else toast(t('common.scan_done', { added: r.added, removed: r.removed }));
       await refreshAll();
     }
   }
@@ -116,9 +117,9 @@
           onremove: (id) => removeFromPlaylist(app.filter.playlist_id!, id),
         },
   );
-  const sortOptions: [SortBy, string][] = [
-    ['path', 'Sort: Full path'], ['title', 'Sort: Title'], ['created', 'Sort: Date created'],
-    ['size', 'Sort: Size'], ['duration', 'Sort: Duration'], ['rating', 'Sort: Rating'],
+  const sortOptions: [SortBy, Key][] = [
+    ['path', 'library.sort_path'], ['title', 'library.sort_name'], ['created', 'library.sort_created'],
+    ['size', 'library.sort_size'], ['duration', 'library.sort_duration'], ['rating', 'library.sort_rating'],
   ];
 
   // Inside a playlist the natural order is the playlist's own; leaving it goes back to full path.
@@ -130,58 +131,58 @@
     if (pl !== null) app.filter.sort_by = 'default';
     else if (app.filter.sort_by === 'default') app.filter.sort_by = 'path';
   });
-  const watchedOptions: [boolean | null, string][] = [[null, 'All'], [false, 'Unwatched'], [true, 'Watched']];
+  const watchedOptions: [boolean | null, Key][] = [[null, 'library.all'], [false, 'common.unwatched'], [true, 'common.watched']];
 </script>
 
 <svelte:window onkeydown={onkey} />
 
 <div class="head">
   <div class="grow">
-    <h1>Library</h1>
-    <div class="muted">{app.paging.total} video{app.paging.total === 1 ? '' : 's'}{filtered ? ' (filtered)' : ''}</div>
+    <h1>{t('library.title')}</h1>
+    <div class="muted">{t('common.videos', { n: app.paging.total })}{filtered ? t('library.filtered') : ''}</div>
   </div>
   {#if app.filter.tag_ids.length > 0 || app.filter.playlist_id !== null}
     <button onclick={toggleWatchedAll} disabled={app.paging.total === 0}
-      title="Mark every video matching this filter as watched; press again to mark them all unwatched">
-      <CheckCheck size={15} /> Toggle watched
+      title={t('library.toggle_watched_title')}>
+      <CheckCheck size={15} /> {t('common.toggle_watched')}
     </button>
   {/if}
-  <button onclick={rescan} disabled={scanning}><RefreshCw size={15} /> {scanning ? 'Scanning…' : 'Rescan'}</button>
-  <button class="primary" disabled={app.paging.total === 0} onclick={() => playFiltered()}><Play size={15} fill="currentColor" /> Play all</button>
+  <button onclick={rescan} disabled={scanning}><RefreshCw size={15} /> {scanning ? t('common.scanning') : t('common.rescan')}</button>
+  <button class="primary" disabled={app.paging.total === 0} onclick={() => playFiltered()}><Play size={15} fill="currentColor" /> {t('library.play_all')}</button>
 </div>
 
 <div class="toolbar">
-  <input type="search" class="grow" placeholder="Search videos…" bind:value={app.filter.search} />
+  <input type="search" class="grow" placeholder={t('library.search')} bind:value={app.filter.search} />
   <div class="seg">
     {#each watchedOptions as [val, label]}
       <button class:on={!app.filter.hidden_only && app.filter.watched === val}
-        onclick={() => { app.filter.hidden_only = false; app.filter.watched = val; }}>{label}</button>
+        onclick={() => { app.filter.hidden_only = false; app.filter.watched = val; }}>{t(label)}</button>
     {/each}
     {#if app.settings.show_hidden === 'true'}
-      <button class:on={app.filter.hidden_only} onclick={() => (app.filter.hidden_only = true)}>Hidden</button>
+      <button class:on={app.filter.hidden_only} onclick={() => (app.filter.hidden_only = true)}>{t('library.hidden')}</button>
     {/if}
   </div>
-  <select bind:value={app.filter.sort_by} title="Sort videos by">
-    {#if app.filter.playlist_id !== null}<option value="default">Sort: Playlist order</option>{/if}
-    {#each sortOptions as [val, label]}<option value={val}>{label}</option>{/each}
+  <select bind:value={app.filter.sort_by} title={t('library.sort_title')}>
+    {#if app.filter.playlist_id !== null}<option value="default">{t('library.sort_default')}</option>{/if}
+    {#each sortOptions as [val, label]}<option value={val}>{t(label)}</option>{/each}
   </select>
   <button class="ghost" onclick={() => (app.filter.sort_desc = !app.filter.sort_desc)}
-    title={app.filter.sort_desc ? 'Descending' : 'Ascending'}>
+    title={app.filter.sort_desc ? t('library.descending') : t('library.ascending')}>
     {#if app.filter.sort_desc}<ArrowDown size={16} />{:else}<ArrowUp size={16} />{/if}
   </button>
   <select bind:value={app.filter.playlist_id}>
-    <option value={null}>All playlists</option>
+    <option value={null}>{t('library.all_playlists')}</option>
     {#each app.playlists as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
   </select>
   <select bind:value={app.filter.folder_id}>
-    <option value={null}>All folders</option>
+    <option value={null}>{t('library.all_folders')}</option>
     {#each app.folders as f (f.id)}<option value={f.id}>{f.path}</option>{/each}
   </select>
-  {#if filtered}<button class="ghost" onclick={clearFilters}><X size={15} /> Clear</button>{/if}
+  {#if filtered}<button class="ghost" onclick={clearFilters}><X size={15} /> {t('library.clear')}</button>{/if}
 </div>
 
 {#if playlistCtx?.canReorder && app.paging.total > 1}
-  <div class="muted hint">Drag videos to reorder this playlist.</div>
+  <div class="muted hint">{t('library.reorder_hint')}</div>
 {/if}
 
 {#if app.tags.length}
@@ -197,11 +198,11 @@
 {#if app.videos.length === 0}
   <div class="empty card">
     {#if filtered}
-      No video matches these filters.
+      {t('library.empty_filtered')}
     {:else if app.folders.length === 0}
-      Your library is empty. Add a folder from the <b>Folders</b> page to get started.
+      {@html t('library.empty_no_folders')}
     {:else}
-      No videos found in your folders. Try <b>Rescan</b>.
+      {@html t('library.empty_no_videos')}
     {/if}
   </div>
 {:else if app.settings.library_view === 'table'}
@@ -216,11 +217,11 @@
 
 {#if pageCount > 1}
   <div class="pager">
-    <button class="ghost" disabled={app.paging.page === 0} onclick={() => setPage(0)} title="First page"><ChevronsLeft size={16} /></button>
-    <button class="ghost" disabled={app.paging.page === 0} onclick={() => setPage(app.paging.page - 1)} title="Previous page"><ChevronLeft size={16} /></button>
-    <span class="muted">Page {app.paging.page + 1} of {pageCount}</span>
-    <button class="ghost" disabled={app.paging.page >= pageCount - 1} onclick={() => setPage(app.paging.page + 1)} title="Next page"><ChevronRight size={16} /></button>
-    <button class="ghost" disabled={app.paging.page >= pageCount - 1} onclick={() => setPage(pageCount - 1)} title="Last page"><ChevronsRight size={16} /></button>
+    <button class="ghost" disabled={app.paging.page === 0} onclick={() => setPage(0)} title={t('library.first_page')}><ChevronsLeft size={16} /></button>
+    <button class="ghost" disabled={app.paging.page === 0} onclick={() => setPage(app.paging.page - 1)} title={t('library.prev_page')}><ChevronLeft size={16} /></button>
+    <span class="muted">{t('library.page_of', { page: app.paging.page + 1, total: pageCount })}</span>
+    <button class="ghost" disabled={app.paging.page >= pageCount - 1} onclick={() => setPage(app.paging.page + 1)} title={t('library.next_page')}><ChevronRight size={16} /></button>
+    <button class="ghost" disabled={app.paging.page >= pageCount - 1} onclick={() => setPage(pageCount - 1)} title={t('library.last_page')}><ChevronsRight size={16} /></button>
   </div>
 {/if}
 
@@ -229,14 +230,14 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="menu-backdrop" onclick={closeMenu} oncontextmenu={(e) => { e.preventDefault(); closeMenu(); }}>
     <div class="menu card" style:left="{menu.x}px" style:top="{menu.y}px" role="menu" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-      <button class="ghost" role="menuitem" onclick={() => menuDo(() => play(v))}><Play size={14} /> Play</button>
+      <button class="ghost" role="menuitem" onclick={() => menuDo(() => play(v))}><Play size={14} /> {t('common.play')}</button>
       <button class="ghost" role="menuitem" onclick={() => menuDo(() => toggleWatched(v))}>
-        {#if v.watched}<EyeOff size={14} /> Mark as unwatched{:else}<Eye size={14} /> Mark as watched{/if}
+        {#if v.watched}<EyeOff size={14} /> {t('library.mark_unwatched')}{:else}<Eye size={14} /> {t('library.mark_watched')}{/if}
       </button>
-      <button class="ghost" role="menuitem" onclick={() => menuDo(() => (managingId = v.id))}><Tag size={14} /> Tags & playlists</button>
+      <button class="ghost" role="menuitem" onclick={() => menuDo(() => (managingId = v.id))}><Tag size={14} /> {t('common.tags_playlists')}</button>
       <hr />
       <button class="ghost" role="menuitem" onclick={() => menuDo(() => setHidden(v, !v.hidden))}>
-        {#if v.hidden}<Eye size={14} /> Unhide video{:else}<EyeOff size={14} /> Hide video{/if}
+        {#if v.hidden}<Eye size={14} /> {t('library.unhide')}{:else}<EyeOff size={14} /> {t('library.hide')}{/if}
       </button>
     </div>
   </div>

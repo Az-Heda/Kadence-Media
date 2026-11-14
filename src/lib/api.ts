@@ -32,6 +32,7 @@ export type Settings = {
   library_view: string; default_folder_id: string; escape_action: string;
   grid_page_size: string; table_page_size: string; col_widths: string; table_columns: string; saved_themes: string;
   bg_color: string; surface_color: string; surface2_color: string; border_color: string; text_color: string; muted_color: string;
+  language: string; date_order: string; date_separator: string; time_format: string; time_seconds: string; date_layout: string;
 };
 
 export const api = {
@@ -109,13 +110,4 @@ export function fmtSize(bytes: number): string {
   let i = 0, v = bytes;
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
   return `${v.toFixed(i ? 1 : 0)} ${u[i]}`;
-}
-
-const p2 = (n: number) => String(n).padStart(2, '0');
-
-/** hh:mm:ss dd/mm/yyyy from unix seconds (local time). Empty for unknown (0). */
-export function fmtDateTime(unixSeconds: number): string {
-  if (!unixSeconds) return '';
-  const d = new Date(unixSeconds * 1000);
-  return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`;
 }

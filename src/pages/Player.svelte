@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, fmtDateTime, fmtTime } from '../lib/api';
+  import { api, fmtTime } from '../lib/api';
+  import { fmtDateTime, t } from '../lib/i18n.svelte';
   import { app, currentVideo, guarded, playNext, playQueue, queueIndex, stopPlayback, togglePause, volumeMax } from '../lib/store.svelte';
   import CircleX from '@lucide/svelte/icons/circle-x';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
@@ -135,21 +136,21 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="stage" class:idle={!visible && !showPanel} onmousemove={poke} onclick={togglePause} ondblclick={() => setFullscreen(!fullscreen)}>
   {#if app.player.idle || (!app.player.loaded && app.player.video_id == null)}
-    <div class="msg muted">Nothing is playing</div>
+    <div class="msg muted">{t('player.nothing')}</div>
   {/if}
 
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="top bar" onclick={(e) => e.stopPropagation()} ondblclick={(e) => e.stopPropagation()}>
-    <button class="danger" onclick={stop} title="Close the video (stops playback)"><CircleX size={16} /> Close</button>
-    <button onclick={back} title="Back to the library (keeps playing)"><ArrowLeft size={16} /> Library</button>
+    <button class="danger" onclick={stop} title={t('player.close_title')}><CircleX size={16} /> {t('common.close')}</button>
+    <button onclick={back} title={t('player.back_title')}><ArrowLeft size={16} /> {t('player.library')}</button>
     <div class="title grow">{video?.title ?? ''}</div>
     <div class="speed">
-      <button class:on={speed !== 1} onclick={() => (speedOpen = !speedOpen)} title="Playback speed"><Gauge size={16} /> {fmtSpeed(speed)}</button>
+      <button class:on={speed !== 1} onclick={() => (speedOpen = !speedOpen)} title={t('player.speed')}><Gauge size={16} /> {fmtSpeed(speed)}</button>
       {#if speedOpen}
         <div class="menu" role="menu">
           {#each SPEEDS as s}
             <button class="opt" class:current={s === speed} role="menuitem" onclick={() => setSpeed(s)}>
-              <span class="chk">{#if s === speed}<Check size={14} />{/if}</span>{fmtSpeed(s)}{#if s === 1}<span class="muted"> (normal)</span>{/if}
+              <span class="chk">{#if s === speed}<Check size={14} />{/if}</span>{fmtSpeed(s)}{#if s === 1}<span class="muted">{t('player.speed_normal')}</span>{/if}
             </button>
           {/each}
         </div>
@@ -165,7 +166,7 @@
           <div class="ptitle">{app.queueTitle}</div>
           <div class="muted small">{queueIndex() + 1} / {app.queueVideos.length}</div>
         </div>
-        <button class="ghost" onclick={() => (panelOpen = false)} title="Close"><X size={16} /></button>
+        <button class="ghost" onclick={() => (panelOpen = false)} title={t('common.close')}><X size={16} /></button>
       </header>
       <div class="items" bind:this={listEl}>
         {#each app.queueVideos as v, i (v.id)}
@@ -189,24 +190,24 @@
       oninput={(e) => { seeking = true; seekValue = Number(e.currentTarget.value); }}
       onchange={commitSeek} />
     <div class="row controls">
-      <button class="ghost" disabled={!hasPrev} onclick={() => playNext(-1)} title="Previous (P)"><SkipBack size={18} /></button>
-      <button class="primary round" onclick={togglePause} title="Play/Pause (Space)">{#if app.player.paused}<Play size={18} fill="currentColor" />{:else}<Pause size={18} fill="currentColor" />{/if}</button>
-      <button class="ghost" onclick={stop} title="Stop and close the video"><Square size={17} fill="currentColor" /></button>
-      <button class="ghost" disabled={!hasNext} onclick={() => playNext(1)} title="Next (N)"><SkipForward size={18} /></button>
+      <button class="ghost" disabled={!hasPrev} onclick={() => playNext(-1)} title={t('player.prev')}><SkipBack size={18} /></button>
+      <button class="primary round" onclick={togglePause} title={t('player.playpause')}>{#if app.player.paused}<Play size={18} fill="currentColor" />{:else}<Pause size={18} fill="currentColor" />{/if}</button>
+      <button class="ghost" onclick={stop} title={t('player.stop_title')}><Square size={17} fill="currentColor" /></button>
+      <button class="ghost" disabled={!hasNext} onclick={() => playNext(1)} title={t('player.next')}><SkipForward size={18} /></button>
       <span class="time">{fmtTime(shownPos)} / {fmtTime(app.player.duration)}</span>
       <span class="grow"></span>
-      <button class="ghost" onclick={() => guarded(() => api.setMute(!app.player.muted))} title="Mute (M)">
+      <button class="ghost" onclick={() => guarded(() => api.setMute(!app.player.muted))} title={t('player.mute')}>
         {#if app.player.muted || app.player.volume === 0}<VolumeX size={18} />{:else if app.player.volume > 100}<Volume2 size={18} />{:else}<Volume1 size={18} />{/if}
       </button>
       <input class="vol" type="range" min="0" max={volumeMax()} step="1" value={app.player.volume}
         oninput={(e) => setVolume(Number(e.currentTarget.value))} />
       <span class="volnum" class:boost={app.player.volume > 100}>{Math.round(app.player.volume)}%</span>
       {#if app.queueTitle !== null}
-        <button class="ghost" class:on={panelOpen} onclick={() => (panelOpen = !panelOpen)} title="Playlist: {app.queueTitle}">
+        <button class="ghost" class:on={panelOpen} onclick={() => (panelOpen = !panelOpen)} title={t('player.playlist', { title: app.queueTitle ?? '' })}>
           <ListVideo size={18} />
         </button>
       {/if}
-      <button class="ghost" onclick={() => setFullscreen(!fullscreen)} title="Fullscreen (F)">{#if fullscreen}<Minimize size={18} />{:else}<Maximize size={18} />{/if}</button>
+      <button class="ghost" onclick={() => setFullscreen(!fullscreen)} title={t('player.fullscreen')}>{#if fullscreen}<Minimize size={18} />{:else}<Maximize size={18} />{/if}</button>
     </div>
   </div>
 </div>

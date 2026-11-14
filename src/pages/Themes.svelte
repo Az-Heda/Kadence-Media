@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app, applySavedTheme, currentColors, DEFAULT_PRIMARY, deleteTheme, saveCurrentTheme, saveSetting, savedThemes, THEME_COLORS, type SavedTheme } from '../lib/store.svelte';
+  import { t, th, type Key } from '../lib/i18n.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
   import Save from '@lucide/svelte/icons/save';
@@ -30,36 +31,36 @@
   ];
 </script>
 
-<h1>Themes</h1>
-<div class="muted intro">Customize the colors and save them as named themes. Changes are saved automatically.</div>
+<h1>{t('themes.title')}</h1>
+<div class="muted intro">{t('themes.intro')}</div>
 
 <section class="card">
-  <h2>Saved themes</h2>
+  <h2>{t('themes.saved')}</h2>
   <form class="row" onsubmit={(e) => { e.preventDefault(); save(); }}>
-    <input type="text" class="grow" placeholder="Theme name (saves the current colors)…" bind:value={name} />
-    <button class="primary" type="submit" disabled={!name.trim()}><Save size={15} /> Save theme</button>
+    <input type="text" class="grow" placeholder={t('themes.name_placeholder')} bind:value={name} />
+    <button class="primary" type="submit" disabled={!name.trim()}><Save size={15} /> {t('themes.save')}</button>
   </form>
-  <div class="hint muted">Saving with an existing name replaces that theme.</div>
+  <div class="hint muted">{t('themes.save_hint')}</div>
   <div class="list">
-    {#each themes as t (t.name)}
-      <div class="trow" class:active={isActive(t)}>
-        <span class="sw">{#each swatches(t) as c}<i style:background={c}></i>{/each}</span>
-        <span class="grow tname">{t.name}{#if isActive(t)}<Check size={14} />{/if}</span>
-        <button onclick={() => applySavedTheme(t)} disabled={isActive(t)}>Apply</button>
-        <button class="ghost danger" onclick={() => (deleting = t.name)} title="Delete theme"><Trash2 size={15} /></button>
+    {#each themes as theme (theme.name)}
+      <div class="trow" class:active={isActive(theme)}>
+        <span class="sw">{#each swatches(theme) as c}<i style:background={c}></i>{/each}</span>
+        <span class="grow tname">{theme.name}{#if isActive(theme)}<Check size={14} />{/if}</span>
+        <button onclick={() => applySavedTheme(theme)} disabled={isActive(theme)}>{t('common.apply')}</button>
+        <button class="ghost danger" onclick={() => (deleting = theme.name)} title={t('themes.delete')}><Trash2 size={15} /></button>
       </div>
     {:else}
-      <div class="muted">No saved themes yet.</div>
+      <div class="muted">{t('themes.none')}</div>
     {/each}
   </div>
 </section>
 
 <section class="card">
-  <h2>Colors</h2>
+  <h2>{t('themes.colors')}</h2>
   <div class="field">
     <div class="grow">
-      <div class="label">Primary color</div>
-      <div class="muted">Accent used for buttons, highlights and the player.</div>
+      <div class="label">{t('themes.primary')}</div>
+      <div class="muted">{t('themes.primary_hint')}</div>
     </div>
     <div class="row">
       {#each presets as c}
@@ -68,31 +69,31 @@
       {/each}
       <input type="color" value={app.settings.primary_color}
         onchange={(e) => saveSetting('primary_color', e.currentTarget.value)} />
-      <button class="ghost" onclick={() => saveSetting('primary_color', DEFAULT_PRIMARY)}>Reset</button>
+      <button class="ghost" onclick={() => saveSetting('primary_color', DEFAULT_PRIMARY)}>{t('common.reset')}</button>
     </div>
   </div>
   {#each THEME_COLORS as c (c.key)}
     <div class="field">
       <div class="grow">
-        <div class="label">{c.label}</div>
-        <div class="muted">{c.hint}</div>
+        <div class="label">{t(`themecolor.${c.key}.label` as Key)}</div>
+        <div class="muted">{t(`themecolor.${c.key}.hint` as Key)}</div>
       </div>
       <div class="row">
         <input type="color" value={app.settings[c.key] || c.fallback}
           onchange={(e) => saveSetting(c.key, e.currentTarget.value)} />
-        <button class="ghost" disabled={app.settings[c.key] === ''} onclick={() => saveSetting(c.key, '')}>Reset</button>
+        <button class="ghost" disabled={app.settings[c.key] === ''} onclick={() => saveSetting(c.key, '')}>{t('common.reset')}</button>
       </div>
     </div>
   {/each}
   <div class="row" style="margin-top:6px">
-    <button disabled={!themeCustom} onclick={resetTheme}><RotateCcw size={14} /> Reset all colors</button>
+    <button disabled={!themeCustom} onclick={resetTheme}><RotateCcw size={14} /> {t('themes.reset_all')}</button>
   </div>
 </section>
 
 
 {#if deleting}
-  <ConfirmDialog title="Delete this theme?" onconfirm={async () => { const n = deleting!; deleting = null; await deleteTheme(n); }} oncancel={() => (deleting = null)}>
-    <p>The saved theme <b>{deleting}</b> will be deleted. Your current colors are not changed. This cannot be undone.</p>
+  <ConfirmDialog title={t('themes.confirm_title')} onconfirm={async () => { const n = deleting!; deleting = null; await deleteTheme(n); }} oncancel={() => (deleting = null)}>
+    <p>{@html th('themes.confirm_body', { name: deleting })}</p>
   </ConfirmDialog>
 {/if}
 

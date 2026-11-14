@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app, currentVideo, stopPlayback, togglePause } from '../lib/store.svelte';
   import { fmtTime } from '../lib/api';
+  import { t } from '../lib/i18n.svelte';
   import Play from '@lucide/svelte/icons/play';
   import Pause from '@lucide/svelte/icons/pause';
   import Square from '@lucide/svelte/icons/square';
@@ -10,10 +11,10 @@
 
 <div class="mini">
   <button class="primary" onclick={togglePause}>{#if app.player.paused}<Play size={16} />{:else}<Pause size={16} />{/if}</button>
-  <div class="grow title">{video?.title ?? 'Playing…'}</div>
+  <div class="grow title">{video?.title ?? t('mini.playing')}</div>
   <span class="muted">{fmtTime(app.player.position)} / {fmtTime(app.player.duration)}</span>
-  <button onclick={() => (app.playerView = true)}><Maximize2 size={15} /> Open player</button>
-  <button class="danger" onclick={stopPlayback} title="Stop"><Square size={15} /></button>
+  <button onclick={() => (app.playerView = true)}><Maximize2 size={15} /> {t('mini.open')}</button>
+  <button class="danger" onclick={stopPlayback} title={t('common.stop')}><Square size={15} /></button>
 </div>
 
 <style>

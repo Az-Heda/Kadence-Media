@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api, type Video } from '../lib/api';
+  import { t } from '../lib/i18n.svelte';
   import X from '@lucide/svelte/icons/x';
   import { app, guarded, refreshAll } from '../lib/store.svelte';
 
@@ -39,28 +40,28 @@
   <div class="dialog card" onclick={(e) => e.stopPropagation()}>
     <div class="row"><h1 class="grow">{video.title}</h1><button class="ghost" onclick={onclose}><X size={16} /></button></div>
 
-    <h2>Tags</h2>
+    <h2>{t('common.tags')}</h2>
     <div class="chips">
       {#each app.tags as t (t.id)}
         <button class="chip" class:active={hasTag(t.id)} onclick={() => toggleTag(t.id)}>
           <span class="dot" style:background={t.color}></span>{t.name}
         </button>
-      {:else}<span class="muted">No tags yet.</span>{/each}
+      {:else}<span class="muted">{t('common.no_tags')}</span>{/each}
     </div>
     <form class="row add" onsubmit={(e) => { e.preventDefault(); createTag(); }}>
-      <input type="text" class="grow" placeholder="New tag…" bind:value={newTag} />
-      <button class="primary" type="submit">Add</button>
+      <input type="text" class="grow" placeholder={t('common.new_tag')} bind:value={newTag} />
+      <button class="primary" type="submit">{t('common.add')}</button>
     </form>
 
-    <h2>Playlists</h2>
+    <h2>{t('common.playlists')}</h2>
     <div class="chips">
       {#each app.playlists as p (p.id)}
         <button class="chip" class:active={inPlaylist(p.id)} onclick={() => togglePlaylist(p.id)}>{p.name}</button>
-      {:else}<span class="muted">No playlists yet.</span>{/each}
+      {:else}<span class="muted">{t('common.no_playlists')}</span>{/each}
     </div>
     <form class="row add" onsubmit={(e) => { e.preventDefault(); createPlaylist(); }}>
-      <input type="text" class="grow" placeholder="New playlist…" bind:value={newPlaylist} />
-      <button class="primary" type="submit">Add</button>
+      <input type="text" class="grow" placeholder={t('common.new_playlist')} bind:value={newPlaylist} />
+      <button class="primary" type="submit">{t('common.add')}</button>
     </form>
   </div>
 </div>

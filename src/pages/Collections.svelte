@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '../lib/api';
   import { app, guarded, refreshAll } from '../lib/store.svelte';
+  import { t, th } from '../lib/i18n.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import X from '@lucide/svelte/icons/x';
   import Check from '@lucide/svelte/icons/check';
@@ -84,61 +85,56 @@
   const focusOnMount = (el: HTMLInputElement) => { el.focus(); el.select(); };
 </script>
 
-<h1>Tags & Playlists</h1>
-<div class="muted intro">Tags label videos (many per video, used as filters). Playlists are ordered lists you can play in sequence.</div>
+<h1>{t('collections.title')}</h1>
+<div class="muted intro">{t('collections.intro')}</div>
 
 <div class="cols">
   <section>
-    <h2>Tags</h2>
+    <h2>{t('common.tags')}</h2>
     <form class="row add" onsubmit={(e) => { e.preventDefault(); addTag(); }}>
       <input type="color" bind:value={tagColor} />
-      <input type="text" class="grow" placeholder="New tag…" bind:value={tagName} />
-      <button class="primary" type="submit">Create</button>
+      <input type="text" class="grow" placeholder={t('common.new_tag')} bind:value={tagName} />
+      <button class="primary" type="submit">{t('common.create')}</button>
     </form>
-    {#each app.tags as t (t.id)}
+    {#each app.tags as tag (tag.id)}
       <div class="card row item">
-        <input type="color" value={t.color} onchange={(e) => editTag(t.id, t.name, e.currentTarget.value)} />
-        <input type="text" class="grow" value={t.name}
-          onchange={(e) => editTag(t.id, e.currentTarget.value, t.color)} />
-        <button class="ghost" title="Show in library" onclick={() => filterByTag(t.id)}>{t.video_count} <ChevronRight size={14} /></button>
-        <button class="danger ghost" onclick={() => (pending = { kind: 'tag', id: t.id, name: t.name, count: t.video_count })} title="Delete"><X size={15} /></button>
+        <input type="color" value={tag.color} onchange={(e) => editTag(tag.id, tag.name, e.currentTarget.value)} />
+        <input type="text" class="grow" value={tag.name}
+          onchange={(e) => editTag(tag.id, e.currentTarget.value, tag.color)} />
+        <button class="ghost" title={t('common.show_in_library')} onclick={() => filterByTag(tag.id)}>{tag.video_count} <ChevronRight size={14} /></button>
+        <button class="danger ghost" onclick={() => (pending = { kind: 'tag', id: tag.id, name: tag.name, count: tag.video_count })} title={t('common.delete')}><X size={15} /></button>
       </div>
-    {:else}<div class="muted">No tags yet.</div>{/each}
+    {:else}<div class="muted">{t('common.no_tags')}</div>{/each}
   </section>
 
   <section>
-    <h2>Playlists</h2>
+    <h2>{t('common.playlists')}</h2>
     <form class="row add" onsubmit={(e) => { e.preventDefault(); addPlaylist(); }}>
-      <input type="text" class="grow" placeholder="New playlist…" bind:value={plName} />
-      <button class="primary" type="submit">Create</button>
+      <input type="text" class="grow" placeholder={t('common.new_playlist')} bind:value={plName} />
+      <button class="primary" type="submit">{t('common.create')}</button>
     </form>
     {#each app.playlists as p (p.id)}
       <div class="card row item">
         {#if renamingId === p.id}
           <input type="text" class="grow" bind:value={renameValue} use:focusOnMount
             onkeydown={(e) => { if (e.key === 'Enter') saveRename(); else if (e.key === 'Escape') cancelRename(); }} />
-          <button class="ghost" title="Cancel" onclick={cancelRename}><X size={15} /></button>
-          <button class="ghost save" title="Save" onclick={saveRename}><Check size={15} /></button>
+          <button class="ghost" title={t('common.cancel')} onclick={cancelRename}><X size={15} /></button>
+          <button class="ghost save" title={t('common.save')} onclick={saveRename}><Check size={15} /></button>
         {:else}
-          <button class="ghost grow name" title="Show in library" onclick={() => showPlaylist(p.id)}>
+          <button class="ghost grow name" title={t('common.show_in_library')} onclick={() => showPlaylist(p.id)}>
             {p.name} <span class="muted">· {p.video_count}</span>
           </button>
-          <button class="ghost" title="Rename" onclick={() => startRename(p.id, p.name)}><Pencil size={15} /></button>
-          <button class="danger ghost" onclick={() => (pending = { kind: 'playlist', id: p.id, name: p.name, count: p.video_count })} title="Delete"><Trash2 size={15} /></button>
+          <button class="ghost" title={t('common.rename')} onclick={() => startRename(p.id, p.name)}><Pencil size={15} /></button>
+          <button class="danger ghost" onclick={() => (pending = { kind: 'playlist', id: p.id, name: p.name, count: p.video_count })} title={t('common.delete')}><Trash2 size={15} /></button>
         {/if}
       </div>
-    {:else}<div class="muted">No playlists yet.</div>{/each}
+    {:else}<div class="muted">{t('common.no_playlists')}</div>{/each}
   </section>
 </div>
 
 {#if pending}
-  <ConfirmDialog title="Delete this {pending.kind}?" onconfirm={confirmDelete} oncancel={() => (pending = null)}>
-    <p>
-      <b>{pending.name}</b> will be deleted
-      {#if pending.kind === 'tag'}and removed from its {pending.count} video{pending.count === 1 ? '' : 's'}.
-      {:else}({pending.count} video{pending.count === 1 ? '' : 's'}); the videos themselves stay in the library.{/if}
-      This cannot be undone.
-    </p>
+  <ConfirmDialog title={t(pending.kind === 'tag' ? 'collections.confirm_tag_title' : 'collections.confirm_playlist_title')} onconfirm={confirmDelete} oncancel={() => (pending = null)}>
+    <p>{@html th(pending.kind === 'tag' ? 'collections.confirm_tag' : 'collections.confirm_playlist', { name: pending.name, n: pending.count })}</p>
   </ConfirmDialog>
 {/if}
 

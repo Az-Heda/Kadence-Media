@@ -1,5 +1,6 @@
 <script lang="ts">
   import Star from '@lucide/svelte/icons/star';
+  import { t } from '../lib/i18n.svelte';
 
   let { value, onchange, size = 16, readonly = false }: {
     value: number; onchange?: (v: number) => void; size?: number; readonly?: boolean;
@@ -16,11 +17,11 @@
   }
 </script>
 
-<div class="stars" role="group" aria-label="Rating" onmouseleave={() => (hover = null)}
-  title={value ? `${value} / 5` : 'Not rated'}>
+<div class="stars" role="group" aria-label={t('stars.rating')} onmouseleave={() => (hover = null)}
+  title={value ? `${value} / 5` : t('stars.not_rated')}>
   {#each [0, 1, 2, 3, 4] as i}
     <button type="button" class="star" disabled={readonly} style:width="{size}px" style:height="{size}px"
-      aria-label="Rate {i + 1}"
+      aria-label={t('stars.rate', { n: i + 1 })}
       onmousemove={(e) => !readonly && (hover = valueAt(e, i))}
       onclick={(e) => { const v = valueAt(e, i); onchange?.(v === value ? 0 : v); }}>
       <Star {size} class="outline" />

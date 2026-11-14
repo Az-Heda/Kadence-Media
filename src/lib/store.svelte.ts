@@ -1,3 +1,4 @@
+import { applyI18nSettings, t } from './i18n.svelte';
 import { api, errMsg, type SortBy, type VideoFilter, type Folder, type Playlist, type PlayerState, type Settings, type Tag, type Video } from './api';
 
 export type Page = 'library' | 'folders' | 'collections' | 'rules' | 'themes' | 'settings';
@@ -7,7 +8,7 @@ export const DEFAULT_PRIMARY = '#d4a017';
 export const app = $state({
   page: 'library' as Page,
   playerView: false,
-  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', ffmpeg_path: '', show_hidden: 'false', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '' } as Settings,
+  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', ffmpeg_path: '', show_hidden: 'false', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '', language: 'system', date_order: 'dmy', date_separator: '/', time_format: '24h', time_seconds: 'true', date_layout: 'time_first' } as Settings,
   folders: [] as Folder[],
   tags: [] as Tag[],
   playlists: [] as Playlist[],
@@ -71,14 +72,14 @@ export async function setDefaultFolder(id: number | null) {
 
 export const volumeMax = () => Math.max(100, Number(app.settings.volume_max) || 300);
 
-/** Customisable theme colors: setting key -> CSS variable, label and default (from app.css). */
-export const THEME_COLORS: { key: keyof Settings; css: string; label: string; hint: string; fallback: string }[] = [
-  { key: 'bg_color', css: '--bg', label: 'Background', hint: 'Window background', fallback: '#0d0d10' },
-  { key: 'surface_color', css: '--surface', label: 'Cards', hint: 'Cards, table and inputs', fallback: '#16161b' },
-  { key: 'surface2_color', css: '--surface-2', label: 'Buttons', hint: 'Buttons and hover backgrounds', fallback: '#1e1e25' },
-  { key: 'border_color', css: '--border', label: 'Borders', hint: 'Lines and outlines', fallback: '#2b2b35' },
-  { key: 'text_color', css: '--text', label: 'Text', hint: 'Main text', fallback: '#ececf1' },
-  { key: 'muted_color', css: '--muted', label: 'Secondary text', hint: 'Hints and labels', fallback: '#9a9aaa' },
+/** Customisable theme colors: setting key -> CSS variable and default (from app.css). Labels: `themecolor.<key>.label|hint`. */
+export const THEME_COLORS: { key: keyof Settings; css: string; fallback: string }[] = [
+  { key: 'bg_color', css: '--bg', fallback: '#0d0d10' },
+  { key: 'surface_color', css: '--surface', fallback: '#16161b' },
+  { key: 'surface2_color', css: '--surface-2', fallback: '#1e1e25' },
+  { key: 'border_color', css: '--border', fallback: '#2b2b35' },
+  { key: 'text_color', css: '--text', fallback: '#ececf1' },
+  { key: 'muted_color', css: '--muted', fallback: '#9a9aaa' },
 ];
 
 /** A named set of colors. Empty strings mean "default". */
@@ -126,6 +127,7 @@ export function applyTheme() {
 export async function loadSettings() {
   app.settings = { ...app.settings, ...(await api.getSettings()) };
   applyTheme();
+  applyI18nSettings(app.settings);
 }
 
 export async function saveSetting(key: keyof Settings, value: string) {
@@ -133,6 +135,7 @@ export async function saveSetting(key: keyof Settings, value: string) {
     await api.setSetting(key, value);
     app.settings[key] = value;
     if (key === 'primary_color' || THEME_COLORS.some((c) => c.key === key)) applyTheme();
+    applyI18nSettings(app.settings);
   });
 }
 
@@ -268,7 +271,7 @@ export async function removeFromPlaylist(playlistId: number, videoId: number) {
 export async function toggleWatchedAll() {
   await guarded(async () => {
     const nowWatched = await api.toggleWatchedMatching(libraryFilter());
-    toast(nowWatched ? 'Marked all as watched' : 'Marked all as unwatched');
+    toast(t(nowWatched ? 'library.marked_watched' : 'library.marked_unwatched'));
     await loadVideos();
   });
 }
@@ -285,7 +288,7 @@ export async function toggleWatched(v: Video) {
 export async function setHidden(v: Video, hidden: boolean) {
   await guarded(async () => {
     await api.setHidden(v.id, hidden);
-    toast(hidden ? 'Video hidden' : 'Video unhidden');
+    toast(t(hidden ? 'library.video_hidden' : 'library.video_unhidden'));
     await loadVideos();
   });
 }

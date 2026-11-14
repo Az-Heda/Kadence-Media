@@ -9,6 +9,7 @@ Tauri 2 (Rust) · Svelte 5 + TypeScript · mpv for playback.
 - **Tags** (many per video) and **playlists** (ordered, play-in-sequence, reorder) — separate concepts.
 - **Watched tracking**: set automatically when playback starts, or toggled manually on any card.
 - **Volume boost**: slider goes past 100% up to a configurable limit (default 300%, Settings page).
+- **Languages**: English and Italian (Settings → Language & formats, default follows the system), plus date order/separator, 12/24-hour time, seconds and date-time order for every date shown.
 - **Settings**: max volume, primary color (default gold), grid/table library view, embed toggle, mpv path.
 - **Default folder**: star a folder on the Folders page and the library opens filtered to it.
 - Player shortcuts: `Space` pause · `←/→` seek 5s (`Shift` 30s) · `↑/↓` volume · `M` mute · `F`/double-click fullscreen · `N`/`P` next/previous · `Esc` back.

@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../lib/i18n.svelte';
   import Trash2 from '@lucide/svelte/icons/trash-2';
 
-  let { title, confirmLabel = 'Delete', onconfirm, oncancel, children }: {
+  let { title, confirmLabel = undefined, onconfirm, oncancel, children }: {
     title: string; confirmLabel?: string; onconfirm: () => void; oncancel: () => void; children: Snippet;
   } = $props();
 </script>
@@ -16,8 +17,8 @@
     <div class="body">{@render children()}</div>
     <div class="row buttons">
       <span class="grow"></span>
-      <button onclick={oncancel}>Cancel</button>
-      <button class="solid" onclick={onconfirm}><Trash2 size={15} /> {confirmLabel}</button>
+      <button onclick={oncancel}>{t('common.cancel')}</button>
+      <button class="solid" onclick={onconfirm}><Trash2 size={15} /> {confirmLabel ?? t('common.delete')}</button>
     </div>
   </div>
 </div>

@@ -99,6 +99,12 @@ pub const DEFAULT_SETTINGS: &[(&str, &str)] = &[
     ("border_color", ""),
     ("text_color", ""),
     ("muted_color", ""),
+    ("language", "system"),
+    ("date_order", "dmy"),
+    ("date_separator", "/"),
+    ("time_format", "24h"),
+    ("time_seconds", "true"),
+    ("date_layout", "time_first"),
 ];
 
 pub struct Library {

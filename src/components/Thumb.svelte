@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fmtTime, type Video } from '../lib/api';
   import { convertFileSrc } from '@tauri-apps/api/core';
+  import { t } from '../lib/i18n.svelte';
   import Play from '@lucide/svelte/icons/play';
 
   let { video, onplay, size = 34 }: { video: Video; onplay?: () => void; size?: number } = $props();
@@ -10,10 +11,10 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="thumb" class:clickable={!!onplay} onclick={onplay} title={onplay ? 'Play' : undefined}>
+<div class="thumb" class:clickable={!!onplay} onclick={onplay} title={onplay ? t('common.play') : undefined}>
   {#if src}<img {src} alt="" loading="lazy" draggable="false" />{/if}
   <span class="play" class:over={!!src}><Play {size} fill="currentColor" /></span>
-  {#if video.watched}<span class="badge">Watched</span>{/if}
+  {#if video.watched}<span class="badge">{t('common.watched')}</span>{/if}
   {#if video.duration && video.duration > 0}<span class="dur">{fmtTime(video.duration)}</span>{/if}
 </div>
 

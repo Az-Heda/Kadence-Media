@@ -1,11 +1,8 @@
 import type { SortBy } from './api';
+import { t, type Key } from './i18n.svelte';
 
 export interface ColumnDef {
   id: string;
-  /** Name in Settings. */
-  name: string;
-  /** Header text in the table. */
-  label: string;
   width: number;
   sort?: SortBy;
   num?: boolean;
@@ -13,16 +10,16 @@ export interface ColumnDef {
 
 /** Table columns in their default order. */
 export const COLUMNS: ColumnDef[] = [
-  { id: 'play', name: 'Play button', label: '', width: 70 },
-  { id: 'watched', name: 'Watched', label: 'Watched', width: 90 },
-  { id: 'rating', name: 'Rating', label: 'Rating', width: 120, sort: 'rating' },
-  { id: 'title', name: 'Title', label: 'Title', width: 320, sort: 'title' },
-  { id: 'created', name: 'Created', label: 'Created', width: 170, sort: 'created' },
-  { id: 'duration', name: 'Duration', label: 'Duration', width: 100, sort: 'duration', num: true },
-  { id: 'size', name: 'Size', label: 'Size', width: 100, sort: 'size', num: true },
-  { id: 'path', name: 'Folder', label: 'Folder', width: 220, sort: 'path' },
-  { id: 'tags', name: 'Tags', label: 'Tags', width: 220 },
-  { id: 'actions', name: 'Tags & playlists button', label: '', width: 90 },
+  { id: 'play', width: 70 },
+  { id: 'watched', width: 90 },
+  { id: 'rating', width: 120, sort: 'rating' },
+  { id: 'title', width: 320, sort: 'title' },
+  { id: 'created', width: 170, sort: 'created' },
+  { id: 'duration', width: 100, sort: 'duration', num: true },
+  { id: 'size', width: 100, sort: 'size', num: true },
+  { id: 'path', width: 220, sort: 'path' },
+  { id: 'tags', width: 220 },
+  { id: 'actions', width: 90 },
 ];
 
 /** Width of the drag handle column (shown only while a playlist can be reordered). */
@@ -47,3 +44,8 @@ export function resolveColumns(raw: string): ColumnPref[] {
 }
 
 export const columnDef = (id: string) => COLUMNS.find((c) => c.id === id)!;
+
+/** Name of a column in Settings. */
+export const colName = (id: string) => t(`col.${id}.name` as Key);
+/** Header text of a column in the table. */
+export const colLabel = (id: string) => t(`col.${id}.label` as Key);
