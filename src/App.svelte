@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { api, type IndexingProgress, type PlayerState } from './lib/api';
-  import { app, defaultFolderId, loadSettings, refreshAll, playNext, queueIndex, guarded, toast, type Page } from './lib/store.svelte';
+  import { app, defaultFolderId, loadSettings, refreshAll, playNext, queueIndex, guarded, setPip, toast, type Page } from './lib/store.svelte';
   import { t, type Key } from './lib/i18n.svelte';
   import Library from './pages/Library.svelte';
   import Folders from './pages/Folders.svelte';
@@ -61,7 +61,11 @@
       await refreshAll();
     });
     const unlisten = [
-      listen<PlayerState>('player-state', (e) => (app.player = e.payload)),
+      listen<PlayerState>('player-state', (e) => {
+        app.player = e.payload;
+        // mpv went away while in picture-in-picture: go back to the normal window.
+        if (app.pip && e.payload.video_id == null) setPip(false);
+      }),
       listen<{ id: number; watched: boolean }>('watched-changed', (e) => {
         const v = app.videos.find((x) => x.id === e.payload.id);
         if (v) v.watched = e.payload.watched;

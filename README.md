@@ -12,7 +12,7 @@ Tauri 2 (Rust) · Svelte 5 + TypeScript · mpv for playback.
 - **Languages**: English and Italian (Settings → Language & formats, default follows the system), plus date order/separator, 12/24-hour time, seconds and date-time order for every date shown.
 - **Settings**: max volume, primary color (default gold), grid/table library view, embed toggle, mpv path.
 - **Default folder**: star a folder on the Folders page and the library opens filtered to it.
-- Player shortcuts: `Space` pause · `←/→` seek 5s (`Shift` 30s) · `↑/↓` volume · `M` mute · `F`/double-click fullscreen · `N`/`P` next/previous · `Esc` back.
+- Player shortcuts: `Space` pause · `←/→` seek 5s (`Shift` 30s) · `↑/↓` volume · `M` mute · `F`/double-click fullscreen · `N`/`P` next/previous · `S` copy the current frame to the clipboard · `I` picture-in-picture · `Esc` back (leaves picture-in-picture first).
 
 ## Architecture
 ```

@@ -2,6 +2,7 @@ mod commands;
 mod host;
 mod indexer;
 mod player;
+mod screenshot;
 mod thumbs;
 
 use std::path::PathBuf;
@@ -18,6 +19,15 @@ pub struct AppState {
     pub wid: Mutex<Option<i64>>,
     /// Where the SQLite database actually lives (shown in Settings).
     pub db_path: PathBuf,
+    /// Window geometry to restore when leaving picture-in-picture (Some = PiP is active).
+    pub pip: Mutex<Option<PipSaved>>,
+}
+
+/// Main-window state saved when entering picture-in-picture.
+pub struct PipSaved {
+    pub size: PhysicalSize<u32>,
+    pub position: PhysicalPosition<i32>,
+    pub maximized: bool,
 }
 
 const DB_FILE: &str = "KadenceMedia.sqlite3";
@@ -99,6 +109,7 @@ pub fn run() {
                 indexer: indexer::Indexer::default(),
                 wid: Mutex::new(None),
                 db_path,
+                pip: Mutex::new(None),
             });
 
             let main = app.get_webview_window("main").ok_or("main window missing")?;
@@ -186,6 +197,9 @@ pub fn run() {
             commands::player_stop,
             commands::set_fullscreen,
             commands::is_fullscreen,
+            commands::set_pip,
+            commands::is_pip,
+            commands::player_screenshot,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the application");

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size, State};
 use vp_core::mpv::MpvConfig;
 use vp_core::{scan_folder_files_pub, Folder, Playlist, Rule, RuleInput, ScanReport, Tag, Video, VideoFilter, VideoPage};
 
 use crate::indexer::{Indexer, Progress};
 use crate::player::{json_f64, resolve_mpv, PlayerState};
-use crate::AppState;
+use crate::{AppState, PipSaved};
 
 type Res<T> = Result<T, String>;
 
@@ -323,4 +323,78 @@ pub fn set_fullscreen(app: AppHandle, on: bool) -> Res<()> {
 #[tauri::command]
 pub fn is_fullscreen(app: AppHandle) -> bool {
     app.get_webview_window("main").and_then(|w| w.is_fullscreen().ok()).unwrap_or(false)
+}
+
+// ------------------------------------------------------- picture-in-picture
+
+/// Logical size of the picture-in-picture window (video area), and the main window's normal minimum.
+const PIP_SIZE: (f64, f64) = (480.0, 270.0);
+const PIP_MIN: (f64, f64) = (240.0, 135.0);
+const NORMAL_MIN: (f64, f64) = (960.0, 600.0); // keep in sync with tauri.conf.json
+
+/// Shrink the window into a small always-on-top player in the bottom-right corner of its monitor
+/// (`on`), or restore the previous size and position. The overlay UI follows the main window.
+#[tauri::command]
+pub fn set_pip(app: AppHandle, state: State<'_, AppState>, on: bool) -> Res<()> {
+    let main = app.get_webview_window("main").ok_or("main window missing")?;
+    let overlay = app.get_webview_window("overlay");
+    let mut saved = state.pip.lock().map_err(|_| "pip lock poisoned".to_string())?;
+    let top = |v: bool| {
+        let _ = main.set_always_on_top(v);
+        if let Some(o) = &overlay {
+            let _ = o.set_always_on_top(v);
+        }
+    };
+    if on {
+        if saved.is_some() {
+            return Ok(());
+        }
+        let _ = main.set_fullscreen(false);
+        let maximized = main.is_maximized().unwrap_or(false);
+        if maximized {
+            let _ = main.unmaximize();
+        }
+        *saved = Some(PipSaved {
+            size: main.inner_size().map_err(e)?,
+            position: main.outer_position().map_err(e)?,
+            maximized,
+        });
+        main.set_min_size(Some(Size::Logical(LogicalSize::new(PIP_MIN.0, PIP_MIN.1)))).map_err(e)?;
+        main.set_size(Size::Logical(LogicalSize::new(PIP_SIZE.0, PIP_SIZE.1))).map_err(e)?;
+        if let Ok(Some(mon)) = main.current_monitor() {
+            let scale = main.scale_factor().unwrap_or(1.0);
+            let (mp, ms) = (mon.position(), mon.size());
+            let (w, h, margin) = ((PIP_SIZE.0 * scale) as i32, (PIP_SIZE.1 * scale) as i32, (24.0 * scale) as i32);
+            // Leave room for the title bar / taskbar below.
+            let x = mp.x + ms.width as i32 - w - margin;
+            let y = mp.y + ms.height as i32 - h - margin * 3;
+            let _ = main.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+        }
+        top(true);
+    } else if let Some(s) = saved.take() {
+        top(false);
+        main.set_min_size(Some(Size::Logical(LogicalSize::new(NORMAL_MIN.0, NORMAL_MIN.1)))).map_err(e)?;
+        main.set_size(Size::Physical(PhysicalSize::new(s.size.width, s.size.height))).map_err(e)?;
+        let _ = main.set_position(Position::Physical(s.position));
+        if s.maximized {
+            let _ = main.maximize();
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn is_pip(state: State<'_, AppState>) -> bool {
+    state.pip.lock().map(|p| p.is_some()).unwrap_or(false)
+}
+
+/// Copy the frame currently shown by mpv to the clipboard.
+#[tauri::command]
+pub async fn player_screenshot(app: AppHandle) -> Res<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        crate::screenshot::copy_frame_to_clipboard(&state.player)
+    })
+    .await
+    .map_err(e)?
 }

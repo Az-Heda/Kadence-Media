@@ -92,6 +92,10 @@ export const api = {
 
   setFullscreen: (on: boolean) => invoke<void>('set_fullscreen', { on }),
   isFullscreen: () => invoke<boolean>('is_fullscreen'),
+  setPip: (on: boolean) => invoke<void>('set_pip', { on }),
+  isPip: () => invoke<boolean>('is_pip'),
+  /** Copies the current video frame to the clipboard. */
+  screenshot: () => invoke<void>('player_screenshot'),
 };
 
 export function errMsg(e: unknown): string {

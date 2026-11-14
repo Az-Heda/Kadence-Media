@@ -8,6 +8,8 @@ export const DEFAULT_PRIMARY = '#d4a017';
 export const app = $state({
   page: 'library' as Page,
   playerView: false,
+  /// Picture-in-picture: the window is a small always-on-top player.
+  pip: false,
   settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', ffmpeg_path: '', show_hidden: 'false', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '', language: 'system', date_order: 'dmy', date_separator: '/', time_format: '24h', time_seconds: 'true', date_layout: 'time_first' } as Settings,
   folders: [] as Folder[],
   tags: [] as Tag[],
@@ -223,7 +225,29 @@ export async function togglePause() {
   await guarded(() => api.setPause(!app.player.paused));
 }
 
+/** Enter/leave picture-in-picture (a small always-on-top window with a compact player). */
+export async function setPip(on: boolean) {
+  if (app.pip === on) return;
+  const ok = await guarded(async () => {
+    await api.setPip(on);
+    return true;
+  });
+  if (!ok) return;
+  app.pip = on;
+  if (on) app.playerView = true;
+}
+
+/** Copy the frame being played to the clipboard. */
+export async function takeScreenshot() {
+  const ok = await guarded(async () => {
+    await api.screenshot();
+    return true;
+  });
+  if (ok) toast(t('player.screenshot_copied'));
+}
+
 export async function stopPlayback() {
+  await setPip(false);
   await guarded(() => api.stop());
   app.playerView = false;
 }

@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { api, fmtTime } from '../lib/api';
   import { fmtDateTime, t } from '../lib/i18n.svelte';
-  import { app, currentVideo, guarded, playNext, playQueue, queueIndex, stopPlayback, togglePause, volumeMax } from '../lib/store.svelte';
+  import { app, currentVideo, guarded, playNext, playQueue, queueIndex, setPip, stopPlayback, takeScreenshot, togglePause, volumeMax } from '../lib/store.svelte';
   import CircleX from '@lucide/svelte/icons/circle-x';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import Play from '@lucide/svelte/icons/play';
@@ -18,6 +18,8 @@
   import ListVideo from '@lucide/svelte/icons/list-video';
   import X from '@lucide/svelte/icons/x';
   import Gauge from '@lucide/svelte/icons/gauge';
+  import Camera from '@lucide/svelte/icons/camera';
+  import PictureInPicture2 from '@lucide/svelte/icons/picture-in-picture-2';
   import Thumb from '../components/Thumb.svelte';
   import Check from '@lucide/svelte/icons/check';
 
@@ -35,7 +37,7 @@
   // Playlist side panel (only when the queue comes from a playlist).
   let panelOpen = $state(false);
   let listEl = $state<HTMLElement>();
-  const showPanel = $derived(panelOpen && app.queueTitle !== null);
+  const showPanel = $derived(panelOpen && app.queueTitle !== null && !app.pip);
 
   // $derived only notifies when the id really changes. Reading app.player.video_id directly
   // re-ran the effect on every position update (the whole player object is replaced ~4x/s),
@@ -64,6 +66,7 @@
   }
 
   async function setFullscreen(on: boolean) {
+    if (on && app.pip) await setPip(false); // fullscreen and picture-in-picture are exclusive
     await guarded(() => api.setFullscreen(on));
     fullscreen = on;
   }
@@ -82,6 +85,7 @@
 
   /** Esc: close the panel first; then leave fullscreen and do the configured action. */
   async function escape() {
+    if (app.pip) { await setPip(false); return; }
     if (speedOpen) { speedOpen = false; return; }
     if (panelOpen) { panelOpen = false; return; }
     const action = app.settings.escape_action;
@@ -117,6 +121,8 @@
       case 'ArrowUp': e.preventDefault(); setVolume(Math.min(volumeMax(), vol + 5)); break;
       case 'ArrowDown': e.preventDefault(); setVolume(Math.max(0, vol - 5)); break;
       case 'f': case 'F': setFullscreen(!fullscreen); break;
+      case 's': case 'S': takeScreenshot(); break;
+      case 'i': case 'I': setPip(!app.pip); break;
       case 'm': case 'M': guarded(() => api.setMute(!app.player.muted)); break;
       case 'n': case 'N': playNext(1); break;
       case 'p': case 'P': playNext(-1); break;
@@ -134,11 +140,19 @@
 <svelte:window onkeydown={onKey} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="stage" class:idle={!visible && !showPanel} onmousemove={poke} onclick={togglePause} ondblclick={() => setFullscreen(!fullscreen)}>
+<div class="stage" class:pip={app.pip} class:idle={!visible && !showPanel} onmousemove={poke} onclick={togglePause} ondblclick={() => (app.pip ? setPip(false) : setFullscreen(!fullscreen))}>
   {#if app.player.idle || (!app.player.loaded && app.player.video_id == null)}
     <div class="msg muted">{t('player.nothing')}</div>
   {/if}
 
+  {#if app.pip}
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="top bar" onclick={(e) => e.stopPropagation()} ondblclick={(e) => e.stopPropagation()}>
+      <div class="title grow">{video?.title ?? ''}</div>
+      <button onclick={() => setPip(false)} title={t('player.pip_exit')}><PictureInPicture2 size={16} /></button>
+      <button class="danger" onclick={stop} title={t('player.close_title')}><CircleX size={16} /></button>
+    </div>
+  {:else}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="top bar" onclick={(e) => e.stopPropagation()} ondblclick={(e) => e.stopPropagation()}>
     <button class="danger" onclick={stop} title={t('player.close_title')}><CircleX size={16} /> {t('common.close')}</button>
@@ -157,6 +171,7 @@
       {/if}
     </div>
   </div>
+  {/if}
 
   {#if showPanel}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -190,24 +205,34 @@
       oninput={(e) => { seeking = true; seekValue = Number(e.currentTarget.value); }}
       onchange={commitSeek} />
     <div class="row controls">
-      <button class="ghost" disabled={!hasPrev} onclick={() => playNext(-1)} title={t('player.prev')}><SkipBack size={18} /></button>
+      {#if !app.pip}<button class="ghost" disabled={!hasPrev} onclick={() => playNext(-1)} title={t('player.prev')}><SkipBack size={18} /></button>{/if}
       <button class="primary round" onclick={togglePause} title={t('player.playpause')}>{#if app.player.paused}<Play size={18} fill="currentColor" />{:else}<Pause size={18} fill="currentColor" />{/if}</button>
-      <button class="ghost" onclick={stop} title={t('player.stop_title')}><Square size={17} fill="currentColor" /></button>
-      <button class="ghost" disabled={!hasNext} onclick={() => playNext(1)} title={t('player.next')}><SkipForward size={18} /></button>
+      {#if !app.pip}
+        <button class="ghost" onclick={stop} title={t('player.stop_title')}><Square size={17} fill="currentColor" /></button>
+        <button class="ghost" disabled={!hasNext} onclick={() => playNext(1)} title={t('player.next')}><SkipForward size={18} /></button>
+      {/if}
       <span class="time">{fmtTime(shownPos)} / {fmtTime(app.player.duration)}</span>
       <span class="grow"></span>
       <button class="ghost" onclick={() => guarded(() => api.setMute(!app.player.muted))} title={t('player.mute')}>
         {#if app.player.muted || app.player.volume === 0}<VolumeX size={18} />{:else if app.player.volume > 100}<Volume2 size={18} />{:else}<Volume1 size={18} />{/if}
       </button>
-      <input class="vol" type="range" min="0" max={volumeMax()} step="1" value={app.player.volume}
-        oninput={(e) => setVolume(Number(e.currentTarget.value))} />
-      <span class="volnum" class:boost={app.player.volume > 100}>{Math.round(app.player.volume)}%</span>
-      {#if app.queueTitle !== null}
+      {#if !app.pip}
+        <input class="vol" type="range" min="0" max={volumeMax()} step="1" value={app.player.volume}
+          oninput={(e) => setVolume(Number(e.currentTarget.value))} />
+        <span class="volnum" class:boost={app.player.volume > 100}>{Math.round(app.player.volume)}%</span>
+      {/if}
+      {#if app.queueTitle !== null && !app.pip}
         <button class="ghost" class:on={panelOpen} onclick={() => (panelOpen = !panelOpen)} title={t('player.playlist', { title: app.queueTitle ?? '' })}>
           <ListVideo size={18} />
         </button>
       {/if}
-      <button class="ghost" onclick={() => setFullscreen(!fullscreen)} title={t('player.fullscreen')}>{#if fullscreen}<Minimize size={18} />{:else}<Maximize size={18} />{/if}</button>
+      <button class="ghost" onclick={takeScreenshot} title={t('player.screenshot')}><Camera size={18} /></button>
+      {#if !app.pip}
+        <button class="ghost" onclick={() => setPip(true)} title={t('player.pip')}><PictureInPicture2 size={18} /></button>
+        <button class="ghost" onclick={() => setFullscreen(!fullscreen)} title={t('player.fullscreen')}>{#if fullscreen}<Minimize size={18} />{:else}<Maximize size={18} />{/if}</button>
+      {:else}
+        <button class="ghost on" onclick={() => setPip(false)} title={t('player.pip_exit')}><PictureInPicture2 size={18} /></button>
+      {/if}
     </div>
   </div>
 </div>
@@ -234,6 +259,14 @@
   /* Icon buttons: no hover border/background, only the icon turns gold. */
   .bar button.ghost:hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--primary); }
   .bar button.primary { background: var(--primary); }
+
+  /* Picture-in-picture: tighter bars for the small window. */
+  .pip .bar { padding: 8px 10px; }
+  .pip .top { padding-bottom: 20px; gap: 8px; }
+  .pip .bottom { padding-top: 24px; }
+  .pip .title { font-size: 13px; }
+  .pip .controls { gap: 4px; }
+  .pip .seek { margin-bottom: 4px; }
 
   .speed { position: relative; }
   .top button.on { color: var(--primary); border-color: var(--primary); }
