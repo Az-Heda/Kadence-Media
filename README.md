@@ -4,15 +4,34 @@ A dark, gold-accented video library + player for Windows 11 and Linux (Debian).
 Tauri 2 (Rust) · Svelte 5 + TypeScript · mpv for playback.
 
 ## Features
-- **Folders page**: add folders; every video in them and their subfolders appears in the library (rescan drops files that disappeared; an unplugged drive never wipes its entries).
-- **Library**: search, filter by watched/unwatched, tags (AND), playlist, folder.
-- **Tags** (many per video) and **playlists** (ordered, play-in-sequence, reorder) — separate concepts.
-- **Watched tracking**: set automatically when playback starts, or toggled manually on any card.
-- **Volume boost**: slider goes past 100% up to a configurable limit (default 300%, Settings page).
-- **Languages**: English and Italian (Settings → Language & formats, default follows the system), plus date order/separator, 12/24-hour time, seconds and date-time order for every date shown.
-- **Settings**: max volume, primary color (default gold), grid/table library view, embed toggle, mpv path.
-- **Default folder**: star a folder on the Folders page and the library opens filtered to it.
-- Player shortcuts: `Space` pause · `←/→` seek 5s (`Shift` 30s) · `↑/↓` volume · `M` mute · `F`/double-click fullscreen · `N`/`P` next/previous · `S` copy the current frame to the clipboard · `I` picture-in-picture · `Esc` back (leaves picture-in-picture first).
+
+**Library**
+- **Folders page**: add folders; every video in them and their subfolders appears in the library (rescan drops files that disappeared; an unplugged drive never wipes its entries). Star a folder to make it the **default**: the library opens filtered to it. Removing a folder asks for confirmation, since its watched/rating/tag/playlist data is lost.
+- **Grid or table view** (Settings). The table has resizable columns (widths are remembered) and columns you can show/hide and reorder by drag and drop.
+- **Search, filters and sorting**: search by text; filter by watched/unwatched, tags (AND), playlist and folder; sort by full path, title, date created, size, duration or rating (or the playlist's own order). Filtering, sorting and paging all run in the backend.
+- **Pagination** with a configurable page size per view (default 60 in grid, 20 in table); `←`/`→` change page.
+- **Thumbnails and durations**: a background job reads durations (mpv) and generates thumbnails (ffmpeg) without blocking scans; progress shows in the sidebar.
+- **Ratings**: 0.5 to 5 stars (half steps) on cards and in the table.
+- **Watched tracking**: set automatically when playback starts, or toggled manually; "Toggle watched" marks everything matching the current tag/playlist filter at once.
+- **Hide videos** from the right-click menu; an optional "Hidden" tab (Settings) shows them again.
+- **Right-click menu** on any video: play, watched, tags & playlists, hide.
+
+**Organization**
+- **Tags** (many per video, with colors) and **playlists** (ordered, reorderable by drag and drop, played in sequence) are separate concepts.
+- **Automatic rules**: a regex on the video's full path applies tags and playlists to newly found videos (and on demand to existing ones), with a live match count.
+
+**Player** (mpv embedded in the window)
+- Seek bar, previous/next, stop, close, fullscreen, mute, and **volume boost** past 100% up to a configurable limit (default 300%).
+- **Playback speed** menu (0.25x to 3x).
+- **Playlist side panel** with thumbnails, dates and durations when playing from a playlist; the queue auto-advances.
+- **Screenshot to clipboard**: pauses the video and copies the current frame; the video stays paused.
+- **Picture-in-picture**: shrinks the window to a small always-on-top player in the corner of the screen, with compact controls.
+- Shortcuts: `Space` pause · `←/→` seek 5s (`Shift` 30s) · `0`-`9` jump to 0%-90% · `↑/↓` volume · `M` mute · `F`/double-click fullscreen · `N`/`P` next/previous · `S` screenshot to clipboard · `I` picture-in-picture · `Esc` leaves picture-in-picture, then does the action chosen in Settings (stop, back to the library, or nothing).
+
+**Customization**
+- **Themes page**: primary color (default gold) plus background, cards, buttons, borders and text colors; save and apply named themes.
+- **Languages**: English and Italian (default follows the system), plus date order, separator, 12/24-hour time, seconds and date/time order for every date shown (Settings → Language & formats).
+- **Settings**: language and formats, maximum volume, library view, page sizes, hidden videos tab, table columns, Esc behavior, embed toggle, mpv and ffmpeg paths, database location.
 
 ## Architecture
 ```
@@ -29,19 +48,19 @@ transparent so the video shows through. (Same approach as OpenPlayer.)
 > but no link-time dependency. You therefore need an `mpv` executable at runtime.
 
 ## Prerequisites
-**Both**: Rust ≥ 1.90 (`rustup update`), Node ≥ 20, `mpv`.
+**Both**: Rust ≥ 1.90 (`rustup update`), Node ≥ 20, `mpv`, and `ffmpeg` (thumbnails; without it the library works but shows placeholder tiles).
 
 **Debian**
 ```bash
 sudo apt install build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev \
-  libayatana-appindicator3-dev librsvg2-dev mpv
+  libayatana-appindicator3-dev librsvg2-dev mpv ffmpeg
 ```
 The app forces X11/XWayland (`GDK_BACKEND=x11`) because mpv's `--wid` doesn't work on Wayland.
-Set `VP_ALLOW_WAYLAND=1` to opt out (video will then open in its own mpv window).
+Set `VP_ALLOW_WAYLAND=1` to opt out (video will then open in its own mpv window). When embedding, mpv is also pinned to its X11 GPU context, since on a Wayland desktop it would otherwise ignore the embed handle.
 
-**Windows 11**: MSVC Build Tools (C++ workload), WebView2 (preinstalled on 11), and an mpv build
-(e.g. https://github.com/shinchiro/mpv-winbuild-cmake/releases or `scoop install mpv`). Either put `mpv.exe` on
-`PATH`, next to `kadence-media.exe` (or in an `mpv/` subfolder), or set its path in Settings.
+**Windows 11**: MSVC Build Tools (C++ workload), WebView2 (preinstalled on 11), an mpv build
+(e.g. https://github.com/shinchiro/mpv-winbuild-cmake/releases or `scoop install mpv`) and ffmpeg (`scoop install ffmpeg`).
+For each, either put the `.exe` on `PATH`, next to `kadence-media.exe` (or in an `mpv/` / `ffmpeg/` subfolder), or set its path in Settings (Playback engine).
 
 ## Run / build
 `make linux` and `make windows` build the installers (see the comments in the `Makefile` for per-OS requirements).
@@ -50,7 +69,8 @@ Set `VP_ALLOW_WAYLAND=1` to opt out (video will then open in its own mpv window)
 npm install
 npm run tauri dev      # development
 npm run tauri build    # installers in target/release/bundle
-cargo test -p vp-core  # core tests
+cargo test -p vp-core  # core tests (db, rules, mpv client, probe)
+cargo test -p kadence-media  # shell tests (player state, screenshot decoding, PiP placement)
 ```
 Data lives in a single SQLite file, `KadenceMedia.sqlite3`, next to the executable (see "Database" below).
 
@@ -70,11 +90,12 @@ Use `[\\/]` to match both Windows and Linux path separators.
 
 `.github/workflows/release.yml` runs when a tag like `v1.0.0` (`v` + number.number.number) is pushed. It first checks that the tagged commit is on `main` (otherwise it fails and releases nothing), runs the tests, then builds two standalone executables (no installers) with `tauri build --no-bundle`:
 
-- `kadence-media-linux-x86_64` (built on Ubuntu 22.04; run `chmod +x` after download; needs webkit2gtk 4.1 and mpv)
-- `kadence-media-windows-x86_64.exe` (needs WebView2 and mpv.exe)
+- `kadence-media-linux-x86_64` (built on Ubuntu 22.04; run `chmod +x` after download; needs webkit2gtk 4.1, mpv and, for thumbnails, ffmpeg)
+- `kadence-media-windows-x86_64.exe` (needs WebView2, mpv.exe and, for thumbnails, ffmpeg.exe)
 
 Both are attached to a GitHub Release named after the tag. To release: `git tag v0.1.0 && git push origin v0.1.0` (from `main`).
 
 ## Known limitations
-- No thumbnails yet (placeholder tiles); no resume-position.
+- No resume position yet: a video always starts from the beginning.
+- The screenshot goes to the clipboard only (nothing is saved to disk) and captures the plain video frame, without subtitles.
 - If the video doesn't show embedded on your setup, turn off "Embed video" in Settings → mpv uses its own window.

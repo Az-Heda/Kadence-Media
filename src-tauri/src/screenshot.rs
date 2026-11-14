@@ -58,15 +58,28 @@ fn decode_png(path: &Path) -> Result<ImageData<'static>, String> {
     Ok(ImageData { width: info.width as usize, height: info.height as usize, bytes: Cow::Owned(rgba) })
 }
 
-/// Grab the frame mpv is showing right now and put it on the clipboard.
+/// Pause the video, grab the frame mpv is showing and put it on the clipboard.
+/// The video is left paused on success; if the capture fails the previous pause state is restored.
 pub fn copy_frame_to_clipboard(player: &Player) -> Result<(), String> {
-    if !player.snapshot().loaded {
+    let before = player.snapshot();
+    if !before.loaded {
         return Err("nothing is playing".into());
     }
+    capture(player).map_err(|err| {
+        let _ = player.with_client(|c| c.set_property("pause", json!(before.paused)));
+        err
+    })
+}
+
+fn capture(player: &Player) -> Result<(), String> {
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let path = std::env::temp_dir().join(format!("kadence-media-shot-{}-{nanos}.png", std::process::id()));
     let path_str = path.to_string_lossy().into_owned();
-    player.with_client(|c| c.command(&[json!("screenshot-to-file"), json!(path_str), json!("video")]))?;
+    player.with_client(|c| {
+        // Commands run in order: freeze the frame first, then save it.
+        c.set_property("pause", json!(true))?;
+        c.command(&[json!("screenshot-to-file"), json!(path_str), json!("video")])
+    })?;
 
     let deadline = Instant::now() + Duration::from_secs(5);
     let image = loop {

@@ -332,6 +332,13 @@ const PIP_SIZE: (f64, f64) = (480.0, 270.0);
 const PIP_MIN: (f64, f64) = (240.0, 135.0);
 const NORMAL_MIN: (f64, f64) = (960.0, 600.0); // keep in sync with tauri.conf.json
 
+/// Top-left (physical px) of the picture-in-picture window: the bottom-right corner of the monitor,
+/// with a margin, leaving extra room below for the title bar / taskbar.
+fn pip_corner(monitor_pos: (i32, i32), monitor_size: (u32, u32), scale: f64) -> (i32, i32) {
+    let (w, h, margin) = ((PIP_SIZE.0 * scale) as i32, (PIP_SIZE.1 * scale) as i32, (24.0 * scale) as i32);
+    (monitor_pos.0 + monitor_size.0 as i32 - w - margin, monitor_pos.1 + monitor_size.1 as i32 - h - margin * 3)
+}
+
 /// Shrink the window into a small always-on-top player in the bottom-right corner of its monitor
 /// (`on`), or restore the previous size and position. The overlay UI follows the main window.
 #[tauri::command]
@@ -364,10 +371,7 @@ pub fn set_pip(app: AppHandle, state: State<'_, AppState>, on: bool) -> Res<()> 
         if let Ok(Some(mon)) = main.current_monitor() {
             let scale = main.scale_factor().unwrap_or(1.0);
             let (mp, ms) = (mon.position(), mon.size());
-            let (w, h, margin) = ((PIP_SIZE.0 * scale) as i32, (PIP_SIZE.1 * scale) as i32, (24.0 * scale) as i32);
-            // Leave room for the title bar / taskbar below.
-            let x = mp.x + ms.width as i32 - w - margin;
-            let y = mp.y + ms.height as i32 - h - margin * 3;
+            let (x, y) = pip_corner((mp.x, mp.y), (ms.width, ms.height), scale);
             let _ = main.set_position(Position::Physical(PhysicalPosition::new(x, y)));
         }
         top(true);
@@ -397,4 +401,21 @@ pub async fn player_screenshot(app: AppHandle) -> Res<()> {
     })
     .await
     .map_err(e)?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pip_sits_in_the_bottom_right_corner_of_its_monitor() {
+        // 1920x1080 at 100%: 480x270 window, 24px margin, 72px reserved below.
+        assert_eq!(pip_corner((0, 0), (1920, 1080), 1.0), (1920 - 480 - 24, 1080 - 270 - 72));
+        // A second monitor to the right keeps its own origin.
+        assert_eq!(pip_corner((1920, 0), (1920, 1080), 1.0), (1920 + 1920 - 480 - 24, 1080 - 270 - 72));
+        // HiDPI: everything scales with the monitor.
+        assert_eq!(pip_corner((0, 0), (3840, 2160), 2.0), (3840 - 960 - 48, 2160 - 540 - 144));
+        // A monitor left of / above the origin (negative coordinates) still works.
+        assert_eq!(pip_corner((-1920, -200), (1920, 1080), 1.0), (-480 - 24, -200 + 1080 - 270 - 72));
+    }
 }

@@ -279,7 +279,7 @@ export const it: Dict = {
   'player.mute': 'Silenzia (M)',
   'player.playlist': 'Playlist: {title}',
   'player.fullscreen': 'Schermo intero (F)',
-  'player.screenshot': 'Copia il fotogramma attuale negli appunti (S)',
+  'player.screenshot': 'Metti in pausa e copia il fotogramma attuale negli appunti (S)',
   'player.screenshot_copied': 'Screenshot copiato negli appunti',
   'player.pip': 'Picture-in-picture (I)',
   'player.pip_exit': 'Torna alla finestra intera (I)',

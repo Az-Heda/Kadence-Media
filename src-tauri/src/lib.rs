@@ -46,6 +46,10 @@ fn executable_dir() -> Option<PathBuf> {
 /// Open the library next to the executable; if that folder isn't writable (e.g. a
 /// system-wide install in /usr/bin or Program Files) fall back to the app-data dir.
 fn open_library(app: &tauri::App) -> Result<(Library, PathBuf), Box<dyn std::error::Error>> {
+    // Explicit override (used by `scripts/smoke-app.sh` so tests never touch a real library).
+    if let Some(path) = std::env::var_os("KADENCE_MEDIA_DB").map(PathBuf::from) {
+        return Ok((Library::open(&path)?, path));
+    }
     if let Some(dir) = executable_dir() {
         let path = dir.join(DB_FILE);
         if let Ok(lib) = Library::open(&path) {

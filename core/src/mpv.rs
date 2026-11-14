@@ -99,6 +99,12 @@ impl MpvClient {
             cmd.arg(format!("--volume-max={}", cfg.volume_max));
             if let Some(wid) = cfg.wid {
                 cmd.arg(format!("--wid={wid}"));
+                // `--wid` is an X11/Win32 handle, but on a Wayland desktop mpv probes its Wayland GPU
+                // context first (it even finds the default `wayland-0` socket without WAYLAND_DISPLAY)
+                // and then ignores `--wid`: the video opens in its own window. Pin the X11 context
+                // so it embeds through XWayland (if it cannot start, mpv falls back to another vo).
+                #[cfg(target_os = "linux")]
+                cmd.arg("--gpu-context=x11egl");
             }
         }
         cmd.arg(format!("--input-ipc-server={ipc}"));

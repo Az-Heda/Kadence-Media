@@ -279,7 +279,7 @@ export const en = {
   'player.mute': 'Mute (M)',
   'player.playlist': 'Playlist: {title}',
   'player.fullscreen': 'Fullscreen (F)',
-  'player.screenshot': 'Copy the current frame to the clipboard (S)',
+  'player.screenshot': 'Pause and copy the current frame to the clipboard (S)',
   'player.screenshot_copied': 'Screenshot copied to the clipboard',
   'player.pip': 'Picture-in-picture (I)',
   'player.pip_exit': 'Back to the full window (I)',

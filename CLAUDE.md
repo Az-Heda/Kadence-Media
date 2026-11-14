@@ -16,7 +16,7 @@ make test                  # cargo test -p vp-core + npm run check
 make linux | make windows  # installers (see Makefile comments for per-OS tooling)
 ```
 
-All tests live in `core/` (db, rules, mpv, probe); `src-tauri` and the frontend have none, so UI/shell changes are verified with `npm run check` plus running the app. Releases are built by `.github/workflows/release.yml` on `vN.N.N` tags pushed from `main`.
+Most tests live in `core/` (db, rules, mpv, probe); `src-tauri` has a few (player state reducer, screenshot decoding, PiP placement; `cargo test -p kadence-media`) and the frontend has none, so UI changes are verified with `npm run check` plus running the app. `scripts/smoke-app.sh` launches the built app under X11 and checks the overlay sits over the main window. Releases are built by `.github/workflows/release.yml` on `vN.N.N` tags pushed from `main`.
 
 ## Architecture
 
