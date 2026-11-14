@@ -16,6 +16,7 @@
   let matchInfo = $state<string>('');
   let matchBad = $state(false);
   let applying = $state(false);
+  let headEl = $state<HTMLElement>();
 
   async function load() {
     rules = (await guarded(() => api.listRules())) ?? [];
@@ -31,6 +32,18 @@
   }
   function startEdit(r: Rule) {
     draft = { ...r, tag_ids: [...r.tag_ids], playlist_ids: [...r.playlist_ids] };
+    headEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // A rule named exactly like a tag/playlist selects it (the user can still deselect it).
+  function autoSelectByName() {
+    if (!draft) return;
+    const name = draft.name.trim();
+    if (!name) return;
+    const tag = app.tags.find((x) => x.name === name);
+    if (tag && !draft.tag_ids.includes(tag.id)) draft.tag_ids = [...draft.tag_ids, tag.id];
+    const pl = app.playlists.find((p) => p.name === name);
+    if (pl && !draft.playlist_ids.includes(pl.id)) draft.playlist_ids = [...draft.playlist_ids, pl.id];
   }
 
   function toggle(list: number[], id: number): number[] {
@@ -97,7 +110,7 @@
   }
 </script>
 
-<div class="head">
+<div class="head" bind:this={headEl}>
   <div class="grow">
     <h1>{t('rules.title')}</h1>
     <div class="muted">{t('rules.intro')}</div>
@@ -110,9 +123,9 @@
 </div>
 
 {#if draft}
-  <form class="card editor" onsubmit={(e) => { e.preventDefault(); save(); }}>
+  <form class="card editor" class:invalid={!draft.tag_ids.length && !draft.playlist_ids.length} onsubmit={(e) => { e.preventDefault(); save(); }}>
     <div class="row">
-      <input type="text" class="grow" placeholder={t('rules.name_placeholder')} bind:value={draft.name} />
+      <input type="text" class="grow" placeholder={t('rules.name_placeholder')} bind:value={draft.name} oninput={autoSelectByName} />
       <label class="check"><input type="checkbox" bind:checked={draft.enabled} /> {t('common.enabled')}</label>
     </div>
     <div class="row">
@@ -151,7 +164,7 @@
 
 <div class="list">
   {#each rules as r (r.id)}
-    <div class="card rule" class:off={!r.enabled}>
+    <div class="card rule" class:off={!r.enabled} class:invalid={!r.tag_ids.length && !r.playlist_ids.length}>
       <div class="row">
         <input type="checkbox" checked={r.enabled} onchange={(e) => setEnabled(r, e.currentTarget.checked)} title={t('common.enabled')} />
         <div class="grow">
@@ -195,6 +208,7 @@
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .actions { margin-top: 6px; }
   .list { display: flex; flex-direction: column; gap: 10px; }
+  .invalid { border-color: var(--danger); }
   .rule.off { opacity: .55; }
   .name { font-weight: 600; margin-bottom: 3px; }
   .applied { margin-top: 10px; padding-left: 28px; }
