@@ -21,7 +21,7 @@ export interface VideoFilter {
 }
 export interface ScanReport { added: number; removed: number; total: number; rule_matches: number }
 export interface Rule {
-  id: number; name: string; pattern: string; case_insensitive: boolean; enabled: boolean;
+  id: number; name: string; pattern: string; case_insensitive: boolean; enabled: boolean; hide: boolean;
   tag_ids: number[]; playlist_ids: number[];
 }
 export type RuleInput = Omit<Rule, 'id'>;

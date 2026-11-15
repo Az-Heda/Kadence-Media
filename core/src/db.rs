@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS rules (
     name             TEXT NOT NULL,
     pattern          TEXT NOT NULL,
     case_insensitive INTEGER NOT NULL DEFAULT 1,
-    enabled          INTEGER NOT NULL DEFAULT 1
+    enabled          INTEGER NOT NULL DEFAULT 1,
+    hide             INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS rule_tags (
     rule_id INTEGER NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
@@ -137,6 +138,12 @@ impl Library {
             if !exists {
                 conn.execute_batch(ddl)?;
             }
+        }
+        let has_hide: bool = conn
+            .prepare("SELECT 1 FROM pragma_table_info('rules') WHERE name = 'hide'")?
+            .exists([])?;
+        if !has_hide {
+            conn.execute_batch("ALTER TABLE rules ADD COLUMN hide INTEGER NOT NULL DEFAULT 0")?;
         }
         // Thumbnails used to be files on disk: anything flagged done without an image is redone.
         conn.execute(

@@ -127,6 +127,8 @@ pub struct Rule {
     pub pattern: String,
     pub case_insensitive: bool,
     pub enabled: bool,
+    /// Matching videos are hidden from the library.
+    pub hide: bool,
     pub tag_ids: Vec<i64>,
     pub playlist_ids: Vec<i64>,
 }
@@ -139,6 +141,8 @@ pub struct RuleInput {
     pub case_insensitive: bool,
     #[serde(default = "yes")]
     pub enabled: bool,
+    #[serde(default)]
+    pub hide: bool,
     #[serde(default)]
     pub tag_ids: Vec<i64>,
     #[serde(default)]

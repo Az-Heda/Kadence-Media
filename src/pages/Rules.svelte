@@ -10,6 +10,7 @@
   import Check from '@lucide/svelte/icons/check';
   import X from '@lucide/svelte/icons/x';
   import ListVideo from '@lucide/svelte/icons/list-video';
+  import EyeOff from '@lucide/svelte/icons/eye-off';
 
   let rules = $state<Rule[]>([]);
   let draft = $state<(RuleInput & { id: number | null }) | null>(null);
@@ -32,7 +33,7 @@
   const plName = (id: number) => app.playlists.find((p) => p.id === id)?.name ?? '?';
 
   function startNew() {
-    draft = { id: null, name: '', pattern: '', case_insensitive: true, enabled: true, tag_ids: [], playlist_ids: [] };
+    draft = { id: null, name: '', pattern: '', case_insensitive: true, enabled: true, hide: false, tag_ids: [], playlist_ids: [] };
     matchInfo = '';
   }
   function startEdit(r: Rule) {
@@ -127,7 +128,7 @@
 </div>
 
 {#snippet editor(d: RuleInput & { id: number | null })}
-  <form class="card editor" class:invalid={!d.tag_ids.length && !d.playlist_ids.length} onsubmit={(e) => { e.preventDefault(); save(); }}>
+  <form class="card editor" class:invalid={!d.tag_ids.length && !d.playlist_ids.length && !d.hide} onsubmit={(e) => { e.preventDefault(); save(); }}>
     <div class="row">
       <input type="text" class="grow" placeholder={t('rules.name_placeholder')} bind:value={d.name} oninput={autoSelectByName} />
       <label class="check"><input type="checkbox" bind:checked={d.enabled} /> {t('common.enabled')}</label>
@@ -159,6 +160,8 @@
       {:else}<span class="muted">{t('rules.create_playlists_first')}</span>{/each}
     </div>
 
+    <label class="check"><input type="checkbox" bind:checked={d.hide} /> {t('rules.hide_videos')}</label>
+
     <div class="row actions">
       <button type="submit" class="primary"><Check size={15} /> {t('rules.save')}</button>
       <button type="button" onclick={() => (draft = null)}><X size={15} /> {t('common.cancel')}</button>
@@ -175,7 +178,7 @@
     {#if draft && draft.id === r.id}
       {@render editor(draft)}
     {:else}
-    <div class="card rule" class:off={!r.enabled} class:invalid={!r.tag_ids.length && !r.playlist_ids.length}>
+    <div class="card rule" class:off={!r.enabled} class:invalid={!r.tag_ids.length && !r.playlist_ids.length && !r.hide}>
       <div class="row">
         <input type="checkbox" checked={r.enabled} onchange={(e) => setEnabled(r, e.currentTarget.checked)} title={t('common.enabled')} />
         <div class="grow">
@@ -193,7 +196,8 @@
         {#each r.playlist_ids as id (id)}
           <span class="chip"><ListVideo size={12} /> {plName(id)}</span>
         {/each}
-        {#if !r.tag_ids.length && !r.playlist_ids.length}<span class="muted small">{t('rules.no_selection')}</span>{/if}
+        {#if r.hide}<span class="chip"><EyeOff size={12} /> {t('rules.hides')}</span>{/if}
+        {#if !r.tag_ids.length && !r.playlist_ids.length && !r.hide}<span class="muted small">{t('rules.no_selection')}</span>{/if}
       </div>
     </div>
     {/if}

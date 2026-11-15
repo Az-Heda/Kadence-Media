@@ -8,6 +8,7 @@ use rusqlite::{params, Connection};
 
 pub(crate) struct CompiledRule {
     re: Regex,
+    hide: bool,
     tag_ids: Vec<i64>,
     playlist_ids: Vec<i64>,
 }
@@ -38,15 +39,15 @@ fn playlist_ids(conn: &Connection, rule_id: i64) -> Result<Vec<i64>> {
 
 /// Compile every enabled rule once (per scan).
 pub(crate) fn load_enabled(conn: &Connection) -> Result<Vec<CompiledRule>> {
-    let mut st = conn.prepare("SELECT id, pattern, case_insensitive FROM rules WHERE enabled = 1 ORDER BY id")?;
-    let rows: Vec<(i64, String, bool)> = st
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0)))?
+    let mut st = conn.prepare("SELECT id, pattern, case_insensitive, hide FROM rules WHERE enabled = 1 ORDER BY id")?;
+    let rows: Vec<(i64, String, bool, bool)> = st
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0, r.get::<_, i64>(3)? != 0)))?
         .collect::<std::result::Result<_, _>>()?;
     let mut out = Vec::new();
-    for (id, pattern, ci) in rows {
+    for (id, pattern, ci, hide) in rows {
         // Patterns are validated on save; skip any that somehow don't compile.
         if let Ok(re) = compile(&pattern, ci) {
-            out.push(CompiledRule { re, tag_ids: tag_ids(conn, id)?, playlist_ids: playlist_ids(conn, id)? });
+            out.push(CompiledRule { re, hide, tag_ids: tag_ids(conn, id)?, playlist_ids: playlist_ids(conn, id)? });
         }
     }
     Ok(out)
@@ -57,6 +58,9 @@ pub(crate) fn apply(conn: &Connection, rules: &[CompiledRule], video_id: i64, pa
     let mut matched = false;
     for rule in rules.iter().filter(|r| r.re.is_match(path)) {
         matched = true;
+        if rule.hide {
+            conn.execute("UPDATE videos SET hidden = 1 WHERE id = ?1", params![video_id])?;
+        }
         for t in &rule.tag_ids {
             conn.execute(
                 "INSERT OR IGNORE INTO video_tags(video_id, tag_id) VALUES (?1, ?2)",
@@ -78,20 +82,21 @@ impl Library {
     pub fn list_rules(&self) -> Result<Vec<Rule>> {
         let mut st = self
             .conn
-            .prepare("SELECT id, name, pattern, case_insensitive, enabled FROM rules ORDER BY id")?;
-        let rows: Vec<(i64, String, String, bool, bool)> = st
+            .prepare("SELECT id, name, pattern, case_insensitive, enabled, hide FROM rules ORDER BY id")?;
+        let rows: Vec<(i64, String, String, bool, bool, bool)> = st
             .query_map([], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get::<_, i64>(3)? != 0, r.get::<_, i64>(4)? != 0))
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get::<_, i64>(3)? != 0, r.get::<_, i64>(4)? != 0, r.get::<_, i64>(5)? != 0))
             })?
             .collect::<std::result::Result<_, _>>()?;
         let mut out = Vec::new();
-        for (id, name, pattern, case_insensitive, enabled) in rows {
+        for (id, name, pattern, case_insensitive, enabled, hide) in rows {
             out.push(Rule {
                 id,
                 name,
                 pattern,
                 case_insensitive,
                 enabled,
+                hide,
                 tag_ids: tag_ids(&self.conn, id)?,
                 playlist_ids: playlist_ids(&self.conn, id)?,
             });
@@ -126,8 +131,8 @@ impl Library {
     pub fn create_rule(&mut self, input: &RuleInput) -> Result<Rule> {
         Self::validate_rule(input)?;
         self.conn.execute(
-            "INSERT INTO rules(name, pattern, case_insensitive, enabled) VALUES (?1, ?2, ?3, ?4)",
-            params![input.name.trim(), input.pattern, input.case_insensitive as i64, input.enabled as i64],
+            "INSERT INTO rules(name, pattern, case_insensitive, enabled, hide) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![input.name.trim(), input.pattern, input.case_insensitive as i64, input.enabled as i64, input.hide as i64],
         )?;
         let id = self.conn.last_insert_rowid();
         self.set_rule_links(id, input)?;
@@ -140,8 +145,8 @@ impl Library {
     pub fn update_rule(&mut self, id: i64, input: &RuleInput) -> Result<()> {
         Self::validate_rule(input)?;
         let n = self.conn.execute(
-            "UPDATE rules SET name = ?1, pattern = ?2, case_insensitive = ?3, enabled = ?4 WHERE id = ?5",
-            params![input.name.trim(), input.pattern, input.case_insensitive as i64, input.enabled as i64, id],
+            "UPDATE rules SET name = ?1, pattern = ?2, case_insensitive = ?3, enabled = ?4, hide = ?5 WHERE id = ?6",
+            params![input.name.trim(), input.pattern, input.case_insensitive as i64, input.enabled as i64, input.hide as i64, id],
         )?;
         if n == 0 {
             return Err(Error::Msg(format!("rule {id} not found")));
@@ -207,9 +212,26 @@ mod tests {
             pattern: pattern.into(),
             case_insensitive: true,
             enabled: true,
+            hide: false,
             tag_ids: tags,
             playlist_ids: playlists,
         }
+    }
+
+    #[test]
+    fn hide_rule_hides_matching_videos() {
+        let dir = tempfile::tempdir().unwrap();
+        touch(dir.path(), "Secret/a.mp4");
+        touch(dir.path(), "Open/b.mp4");
+        let mut lib = Library::open_in_memory().unwrap();
+        let mut inp = input("secret", vec![], vec![]);
+        inp.hide = true;
+        lib.create_rule(&inp).unwrap();
+        let f = lib.add_folder(dir.path().to_str().unwrap()).unwrap();
+        lib.scan_folder(f.id).unwrap();
+        let shown = lib.list_videos(&VideoFilter::default()).unwrap();
+        assert_eq!(shown.len(), 1);
+        assert!(shown[0].path.contains("Open"));
     }
 
     #[test]
