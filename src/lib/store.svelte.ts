@@ -1,5 +1,5 @@
 import { applyI18nSettings, t } from './i18n.svelte';
-import { api, errMsg, type SortBy, type VideoFilter, type Folder, type Playlist, type PlayerState, type Settings, type Tag, type Video } from './api';
+import { api, errMsg, type SortBy, type VideoFilter, type Folder, type Playlist, type ProfilesState, type PlayerState, type Settings, type Tag, type Video } from './api';
 
 export type Page = 'library' | 'folders' | 'playlists' | 'tags' | 'rules' | 'themes' | 'settings';
 
@@ -11,6 +11,8 @@ export const app = $state({
   /// Picture-in-picture: the window is a small always-on-top player.
   pip: false,
   settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', ffmpeg_path: '', show_hidden: 'false', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '', language: 'system', date_order: 'dmy', date_separator: '/', time_format: '24h', time_seconds: 'true', date_layout: 'time_first' } as Settings,
+  /// Profiles (each one has its own library) and the one currently loaded.
+  profiles: { current: 1, profiles: [] } as ProfilesState,
   folders: [] as Folder[],
   tags: [] as Tag[],
   playlists: [] as Playlist[],
@@ -189,6 +191,36 @@ export async function refreshAll() {
     await loadMeta();
     await loadVideos();
   });
+}
+
+export async function loadProfiles() {
+  await guarded(async () => (app.profiles = await api.listProfiles()));
+}
+
+/** Load another profile and reset everything that belonged to the previous library. Returns an error message (wrong PIN...) or null on success. */
+export async function switchProfile(id: number, pin: string | null): Promise<string | null> {
+  let state: ProfilesState;
+  try {
+    state = await api.switchProfile(id, pin);
+  } catch (e) {
+    return errMsg(e);
+  }
+  app.profiles = state;
+  app.queue = [];
+  app.queueVideos = [];
+  app.queueTitle = null;
+  app.playerView = false;
+  app.filter = { search: '', watched: null, hidden_only: false, tag_ids: [], playlist_id: null, folder_id: null, sort_by: 'path', sort_desc: false };
+  app.paging.page = 0;
+  await guarded(async () => {
+    await loadSettings();
+    app.filter.folder_id = defaultFolderId();
+    app.player = await api.playerState();
+    app.indexing = await api.indexingStatus();
+  });
+  app.page = 'library';
+  await refreshAll();
+  return null;
 }
 
 export function currentVideo(): Video | undefined {

@@ -10,6 +10,8 @@ export interface Video {
   tags: VideoTag[]; playlist_ids: number[];
 }
 export interface VideoPage { items: Video[]; total: number; page: number; page_size: number }
+export interface ProfileInfo { id: number; name: string; has_pin: boolean; is_default: boolean }
+export interface ProfilesState { current: number; profiles: ProfileInfo[] }
 export interface IndexingProgress { running: boolean; done: number; total: number }
 export type SortBy = 'default' | 'title' | 'path' | 'created' | 'size' | 'duration' | 'rating';
 export interface VideoFilter {
@@ -41,6 +43,13 @@ export const api = {
   removeFolder: (id: number) => invoke<void>('remove_folder', { id }),
   setDefaultFolder: (id: number | null) => invoke<void>('set_default_folder', { id }),
   databasePath: () => invoke<string>('database_path'),
+
+  listProfiles: () => invoke<ProfilesState>('list_profiles'),
+  createProfile: (name: string, pin: string | null) => invoke<ProfilesState>('create_profile', { name, pin }),
+  switchProfile: (id: number, pin: string | null) => invoke<ProfilesState>('switch_profile', { id, pin }),
+  setProfilePin: (id: number, currentPin: string | null, newPin: string | null) =>
+    invoke<ProfilesState>('set_profile_pin', { id, currentPin, newPin }),
+  deleteProfile: (id: number, pin: string | null) => invoke<ProfilesState>('delete_profile', { id, pin }),
 
   listRules: () => invoke<Rule[]>('list_rules'),
   createRule: (input: RuleInput) => invoke<Rule>('create_rule', { input }),

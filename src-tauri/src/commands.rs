@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size, State};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size, State};
 use vp_core::mpv::MpvConfig;
-use vp_core::{scan_folder_files_pub, Folder, Playlist, Rule, RuleInput, ScanReport, Tag, Video, VideoFilter, VideoPage};
+use vp_core::profiles::ProfileInfo;
+use vp_core::{scan_folder_files_pub, Folder, Library, Playlist, Rule, RuleInput, ScanReport, Tag, Video, VideoFilter, VideoPage};
 
 use crate::indexer::{Indexer, Progress};
 use crate::player::{json_f64, resolve_mpv, PlayerState};
@@ -85,7 +86,87 @@ pub fn set_default_folder(state: State<'_, AppState>, id: Option<i64>) -> Res<()
 
 #[tauri::command]
 pub fn database_path(state: State<'_, AppState>) -> String {
-    state.db_path.to_string_lossy().into_owned()
+    state.db_path.lock().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+// --------------------------------------------------------------- profiles
+
+#[derive(serde::Serialize)]
+pub struct ProfilesState {
+    pub current: i64,
+    pub profiles: Vec<ProfileInfo>,
+}
+
+fn profiles_state(state: &AppState) -> Res<ProfilesState> {
+    let profiles = state.profiles.lock().map_err(|_| "profiles lock poisoned".to_string())?.list().map_err(e)?;
+    let current = *state.current_profile.lock().map_err(|_| "profiles lock poisoned".to_string())?;
+    Ok(ProfilesState { current, profiles })
+}
+
+macro_rules! profiles {
+    ($state:expr) => {
+        $state.profiles.lock().map_err(|_| "profiles lock poisoned".to_string())?
+    };
+}
+
+#[tauri::command]
+pub fn list_profiles(state: State<'_, AppState>) -> Res<ProfilesState> {
+    profiles_state(&state)
+}
+
+#[tauri::command]
+pub fn create_profile(state: State<'_, AppState>, name: String, pin: Option<String>) -> Res<ProfilesState> {
+    profiles!(state).create(&name, pin.as_deref()).map_err(e)?;
+    profiles_state(&state)
+}
+
+#[tauri::command]
+pub fn set_profile_pin(state: State<'_, AppState>, id: i64, current_pin: Option<String>, new_pin: Option<String>) -> Res<ProfilesState> {
+    profiles!(state).set_pin(id, current_pin.as_deref(), new_pin.as_deref()).map_err(e)?;
+    profiles_state(&state)
+}
+
+#[tauri::command]
+pub fn delete_profile(state: State<'_, AppState>, id: i64, pin: Option<String>) -> Res<ProfilesState> {
+    let _switching = state.switching.lock().map_err(|_| "profiles lock poisoned".to_string())?;
+    if *state.current_profile.lock().map_err(|_| "profiles lock poisoned".to_string())? == id {
+        return Err("switch to another profile before deleting this one".into());
+    }
+    profiles!(state).delete(id, pin.as_deref()).map_err(e)?;
+    profiles_state(&state)
+}
+
+/// Load another profile's library. Playback and the background indexer belong to the old
+/// profile, so both are stopped first and the indexer is restarted on the new library.
+#[tauri::command]
+pub async fn switch_profile(app: AppHandle, id: i64, pin: Option<String>) -> Res<ProfilesState> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _switching = state.switching.lock().map_err(|_| "profiles lock poisoned".to_string())?;
+        if *state.current_profile.lock().map_err(|_| "profiles lock poisoned".to_string())? == id {
+            return profiles_state(&state);
+        }
+        // Check the PIN and open the new library before touching anything running.
+        let path = {
+            let mut profiles = profiles!(state);
+            profiles.verify(id, pin.as_deref()).map_err(e)?;
+            profiles.db_path(id).map_err(e)?
+        };
+        let new_lib = Library::open(&path).map_err(e)?;
+
+        state.indexer.shutdown();
+        state.player.stop();
+        state.player.shutdown();
+        let _ = app.emit("player-state", state.player.snapshot());
+        *lib!(state) = new_lib;
+        *state.db_path.lock().map_err(|_| "profiles lock poisoned".to_string())? = path;
+        *state.current_profile.lock().map_err(|_| "profiles lock poisoned".to_string())? = id;
+        let _ = app.emit("indexing-progress", state.indexer.progress());
+        Indexer::start(&app); // durations/thumbnails of the new library
+        profiles_state(&state)
+    })
+    .await
+    .map_err(e)?
 }
 
 // ------------------------------------------------------------------ rules

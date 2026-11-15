@@ -17,8 +17,8 @@ Tauri 2 (Rust) · Svelte 5 + TypeScript · mpv for playback.
 - **Right-click menu** on any video: play, watched, tags & playlists, hide.
 
 **Organization**
-- **Tags** (many per video, with colors) and **playlists** (ordered, reorderable by drag and drop, played in sequence) are separate concepts.
-- **Automatic rules**: a regex on the video's full path applies tags and playlists to newly found videos (and on demand to existing ones), with a live match count.
+- **Tags** (many per video, with colors) and **playlists** (ordered, reorderable by drag and drop, played in sequence) are separate concepts, each with its own page (Playlists, then Tags): a table with name search, client-side pagination, rename, delete, "show in library" and a dialog to create new ones.
+- **Automatic rules**: a regex on the video's full path applies tags and playlists to newly found videos (and on demand to existing ones), with a live match count. The Rules page has a name search, and editing a rule replaces its card in place.
 
 **Player** (mpv embedded in the window)
 - Seek bar, previous/next, stop, close, fullscreen, mute, and **volume boost** past 100% up to a configurable limit (default 300%).
@@ -31,11 +31,12 @@ Tauri 2 (Rust) · Svelte 5 + TypeScript · mpv for playback.
 **Customization**
 - **Themes page**: primary color (default gold) plus background, cards, buttons, borders and text colors; save and apply named themes.
 - **Languages**: English and Italian (default follows the system), plus date order, separator, 12/24-hour time, seconds and date/time order for every date shown (Settings → Language & formats).
+- **Profiles**: a switcher at the bottom of the sidebar. Each profile has its own library (folders, tags, playlists, rules, settings) in a separate file; an optional 4–8 digit PIN (not available on the Default profile) is asked when switching to it, with a delay after repeated wrong attempts. The PIN only locks the profile inside the app, it does not encrypt the files. The app always starts on the Default profile.
 - **Settings**: language and formats, maximum volume, library view, page sizes, hidden videos tab, table columns, Esc behavior, embed toggle, mpv and ffmpeg paths, database location.
 
 ## Architecture
 ```
-core/        vp-core: SQLite library, scanner, tags/playlists/settings, mpv JSON-IPC client (no Tauri; unit-tested)
+core/        vp-core: SQLite library, profile registry, scanner, tags/playlists/settings, mpv JSON-IPC client (no Tauri; unit-tested)
 src-tauri/   Tauri shell: commands, player bridge, native video surface
 src/         Svelte UI
 ```
@@ -69,16 +70,16 @@ For each, either put the `.exe` on `PATH`, next to `kadence-media.exe` (or in an
 npm install
 npm run tauri dev      # development
 npm run tauri build    # installers in target/release/bundle
-cargo test -p vp-core  # core tests (db, rules, mpv client, probe)
+cargo test -p vp-core  # core tests (db, rules, profiles, mpv client, probe)
 cargo test -p kadence-media  # shell tests (player state, screenshot decoding, PiP placement)
 ```
-Data lives in a single SQLite file, `KadenceMedia.sqlite3`, next to the executable (see "Database" below).
+Data lives in SQLite files next to the executable: one library per profile plus the profile registry (see "Database" below).
 
 ## Database
-One SQLite file, `KadenceMedia.sqlite3`, created **next to the executable** (`target/debug/` in dev, so
+Each profile has its own library file. The Default profile uses `KadenceMedia.sqlite3`; every other profile uses `profile-<id>.sqlite3`. The list of profiles (with salted PIN hashes) is in `profiles.sqlite3`. All of them are created **next to the executable** (`target/debug/` in dev, so
 `make clean` / `cargo clean` deletes the dev library; AppImage: next to the `.AppImage` file).
 If that folder is not writable (e.g. a `.deb` in `/usr/bin`, or an MSI under Program Files) the app falls
-back to its per-user data folder. The path in use is shown in Settings → Database.
+back to its per-user data folder. The path of the current profile's library is shown in Settings → Database.
 `-wal`/`-shm` files may appear beside it while the app runs.
 
 ## Automatic rules

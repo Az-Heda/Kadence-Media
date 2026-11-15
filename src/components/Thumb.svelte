@@ -2,12 +2,14 @@
   import { fmtTime, type Video } from '../lib/api';
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { t } from '../lib/i18n.svelte';
+  import { app } from '../lib/store.svelte';
   import Play from '@lucide/svelte/icons/play';
 
   let { video, onplay, size = 34 }: { video: Video; onplay?: () => void; size?: number } = $props();
 
-  // Served from the database by the `thumb` protocol; `modified` busts the cache when a file changes.
-  const src = $derived(video.thumb ? `${convertFileSrc(String(video.id), 'thumb')}?v=${video.modified}` : null);
+  // Served from the database by the `thumb` protocol; `modified` busts the cache when a file changes
+  // and the profile id keeps profiles (whose video ids overlap) from sharing cached images.
+  const src = $derived(video.thumb ? `${convertFileSrc(String(video.id), 'thumb')}?p=${app.profiles.current}&v=${video.modified}` : null);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->

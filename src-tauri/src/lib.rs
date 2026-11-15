@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Position, RunEvent, Size, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent};
+use vp_core::profiles::{Profiles, DEFAULT_PROFILE_ID};
 use vp_core::Library;
 
 pub struct AppState {
@@ -17,8 +18,14 @@ pub struct AppState {
     pub indexer: indexer::Indexer,
     /// Native window id mpv draws into (None => mpv opens its own window).
     pub wid: Mutex<Option<i64>>,
-    /// Where the SQLite database actually lives (shown in Settings).
-    pub db_path: PathBuf,
+    /// Where the current profile's SQLite database lives (shown in Settings).
+    pub db_path: Mutex<PathBuf>,
+    /// Registry of profiles (`profiles.sqlite3`, next to the default library).
+    pub profiles: Mutex<Profiles>,
+    /// Id of the profile whose library is loaded in `lib`.
+    pub current_profile: Mutex<i64>,
+    /// Serialises profile switches (they stop and restart the player and the indexer).
+    pub switching: Mutex<()>,
     /// Window geometry to restore when leaving picture-in-picture (Some = PiP is active).
     pub pip: Mutex<Option<PipSaved>>,
 }
@@ -43,24 +50,31 @@ fn executable_dir() -> Option<PathBuf> {
     std::env::current_exe().ok()?.parent().map(|p| p.to_path_buf())
 }
 
-/// Open the library next to the executable; if that folder isn't writable (e.g. a
-/// system-wide install in /usr/bin or Program Files) fall back to the app-data dir.
-fn open_library(app: &tauri::App) -> Result<(Library, PathBuf), Box<dyn std::error::Error>> {
+/// Open the profile registry and the default profile's library. Everything lives next to the
+/// executable; if that folder isn't writable (e.g. a system-wide install in /usr/bin or
+/// Program Files) it falls back to the app-data dir.
+fn open_library(app: &tauri::App) -> Result<(Profiles, Library, PathBuf), Box<dyn std::error::Error>> {
+    fn open_in(dir: &std::path::Path, file: &str) -> Result<(Profiles, Library, PathBuf), vp_core::Error> {
+        let profiles = Profiles::open(dir, file)?;
+        let path = profiles.db_path(DEFAULT_PROFILE_ID)?;
+        let lib = Library::open(&path)?;
+        Ok((profiles, lib, path))
+    }
     // Explicit override (used by `scripts/smoke-app.sh` so tests never touch a real library).
     if let Some(path) = std::env::var_os("KADENCE_MEDIA_DB").map(PathBuf::from) {
-        return Ok((Library::open(&path)?, path));
+        let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_else(|| DB_FILE.into());
+        return Ok(open_in(&dir, &file)?);
     }
     if let Some(dir) = executable_dir() {
-        let path = dir.join(DB_FILE);
-        if let Ok(lib) = Library::open(&path) {
-            return Ok((lib, path));
+        if let Ok(opened) = open_in(&dir, DB_FILE) {
+            return Ok(opened);
         }
         eprintln!("cannot write to {}, falling back to the app data directory", dir.display());
     }
     let data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&data_dir)?;
-    let path = data_dir.join(DB_FILE);
-    Ok((Library::open(&path)?, path))
+    Ok(open_in(&data_dir, DB_FILE)?)
 }
 
 /// Keep the transparent UI overlay glued to the client area of the main window.
@@ -106,13 +120,16 @@ pub fn run() {
             .unwrap()
         })
         .setup(|app| {
-            let (lib, db_path) = open_library(app)?;
+            let (profiles, lib, db_path) = open_library(app)?;
             app.manage(AppState {
                 lib: Mutex::new(lib),
                 player: player::Player::default(),
                 indexer: indexer::Indexer::default(),
                 wid: Mutex::new(None),
-                db_path,
+                db_path: Mutex::new(db_path),
+                profiles: Mutex::new(profiles),
+                current_profile: Mutex::new(DEFAULT_PROFILE_ID),
+                switching: Mutex::new(()),
                 pip: Mutex::new(None),
             });
 
@@ -164,6 +181,11 @@ pub fn run() {
             commands::rescan_all,
             commands::set_default_folder,
             commands::database_path,
+            commands::list_profiles,
+            commands::create_profile,
+            commands::switch_profile,
+            commands::set_profile_pin,
+            commands::delete_profile,
             commands::list_rules,
             commands::create_rule,
             commands::update_rule,

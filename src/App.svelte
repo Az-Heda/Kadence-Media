@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { api, type IndexingProgress, type PlayerState } from './lib/api';
-  import { app, defaultFolderId, loadSettings, refreshAll, playNext, queueIndex, guarded, setPip, toast, type Page } from './lib/store.svelte';
+  import { app, defaultFolderId, loadSettings, loadProfiles, refreshAll, playNext, queueIndex, guarded, setPip, toast, type Page } from './lib/store.svelte';
   import { t, type Key } from './lib/i18n.svelte';
   import Library from './pages/Library.svelte';
   import Folders from './pages/Folders.svelte';
@@ -12,6 +12,8 @@
   import Player from './pages/Player.svelte';
   import Rules from './pages/Rules.svelte';
   import MiniPlayer from './components/MiniPlayer.svelte';
+  import ProfilesDialog from './components/ProfilesDialog.svelte';
+  import UserRound from '@lucide/svelte/icons/user-round';
   import LayoutGrid from '@lucide/svelte/icons/layout-grid';
   import FolderOpen from '@lucide/svelte/icons/folder-open';
   import Tags from '@lucide/svelte/icons/tags';
@@ -34,6 +36,8 @@
   // Without folders there is nothing to show: hide the Library and land on Folders.
   const pages = $derived(allPages.filter((p) => p.id !== 'library' || app.folders.length > 0));
   let loaded = $state(false);
+  let showProfiles = $state(false);
+  const currentProfile = $derived(app.profiles.profiles.find((p) => p.id === app.profiles.current));
   $effect(() => {
     if (loaded && app.folders.length === 0 && app.page === 'library') app.page = 'folders';
   });
@@ -52,6 +56,7 @@
     if (surface !== 'overlay') return;
     guarded(async () => {
       await loadSettings();
+      await loadProfiles();
       app.filter.folder_id = defaultFolderId(); // default folder is applied before the first load
       await refreshAll();
       loaded = true;
@@ -123,6 +128,9 @@
             <p.icon size={18} />{t(p.label)}
           </button>
         {/each}
+        <button class="nav ghost profile" title={t('profiles.switch_title')} onclick={() => (showProfiles = true)}>
+          <UserRound size={18} /><span class="pname">{currentProfile?.name ?? ''}</span>
+        </button>
       </nav>
       <div class="content">
         <main>
@@ -138,6 +146,7 @@
       </div>
     </div>
   {/if}
+  {#if showProfiles}<ProfilesDialog onclose={() => (showProfiles = false)} />{/if}
   {#if app.toast}
     <div class="toast" class:error={app.toast.error}>{app.toast.text}</div>
   {/if}
@@ -152,6 +161,8 @@
   .nav { justify-content: flex-start; text-align: left; display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
   .nav.active { background: var(--primary-soft); color: var(--primary); border-color: transparent; }
     .spacer { flex: 1; }
+  .profile { margin-top: 6px; border-top: 1px solid var(--border); border-radius: 0 0 8px 8px; padding-top: 12px; }
+  .pname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .indexing { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 12px; color: var(--muted); }
   .spin { display: inline-flex; animation: spin 1s linear infinite; color: var(--primary); }
   @keyframes spin { to { transform: rotate(360deg); } }
