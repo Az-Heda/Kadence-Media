@@ -41,10 +41,9 @@
     const made = await guarded(() => kind === 'tag' ? api.createTag(newName, newColor) : api.createPlaylist(newName));
     if (!made) return;
     creating = false;
-    search = '';
     await refreshAll();
-    // Jump to the page holding the new row.
-    const i = rows.findIndex((r) => r.id === made.id);
+    // Keep the search as is; jump to the page holding the new row if it matches it.
+    const i = filtered.findIndex((r) => r.id === made.id);
     if (i >= 0) page = Math.floor(i / PAGE_SIZE);
   }
 
