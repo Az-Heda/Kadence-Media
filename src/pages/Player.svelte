@@ -238,7 +238,15 @@
 </div>
 
 <style>
-  .stage { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.004); } /* invisible but hit-testable */
+  .stage {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.004); /* invisible but hit-testable */
+    /* Everything here sits over the video: use the player colors, not the app theme. */
+    color: var(--player-text);
+    --text: var(--player-text);
+    --muted: color-mix(in srgb, var(--player-text) 65%, transparent);
+    --border: color-mix(in srgb, var(--player-text) 22%, transparent);
+    --surface-2: color-mix(in srgb, var(--player-text) 14%, transparent);
+  }
   .stage.idle { cursor: none; }
   .msg { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
   .bar { position: absolute; left: 0; right: 0; padding: 14px 20px; transition: opacity .25s; }
@@ -253,7 +261,10 @@
   .volnum { width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
   .volnum.boost { color: var(--primary); font-weight: 600; }
   .round { border-radius: 50%; width: 42px; height: 42px; padding: 0; }
-  .bar button { background: #0009; }
+  .bar button { background: color-mix(in srgb, var(--player-button) 60%, transparent); color: var(--player-text); }
+  .bar button:not(.primary) :global(svg) { color: var(--player-icon); }
+  .bar button.ghost.on :global(svg), .bar button.ghost:hover:not(:disabled) :global(svg), .top button.on :global(svg) { color: var(--primary); }
+  .bar button.danger:hover :global(svg) { color: var(--danger); }
   .bar button.ghost { background: transparent; }
   .bar button.ghost.on { color: var(--primary); }
   /* Icon buttons: no hover border/background, only the icon turns gold. */
@@ -272,7 +283,7 @@
   .top button.on { color: var(--primary); border-color: var(--primary); }
   .menu {
     position: absolute; right: 0; top: calc(100% + 6px); min-width: 140px; display: flex; flex-direction: column; padding: 4px;
-    background: #101014f5; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px #000a; z-index: 5;
+    background: color-mix(in srgb, var(--player-panel) 96%, transparent); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px #000a; z-index: 5;
   }
   .opt { justify-content: flex-start; background: transparent !important; border-color: transparent; }
   .opt:hover { background: var(--surface-2) !important; }
@@ -281,7 +292,7 @@
 
   .panel {
     position: absolute; right: 16px; top: 70px; bottom: 120px; width: 520px; max-width: calc(100vw - 32px); display: flex; flex-direction: column;
-    background: #101014f0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px #000a;
+    background: color-mix(in srgb, var(--player-panel) 94%, transparent); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px #000a;
   }
   .panel header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
   .ptitle { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

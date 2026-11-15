@@ -72,7 +72,22 @@
       <button class="ghost" onclick={() => saveSetting('primary_color', DEFAULT_PRIMARY)}>{t('common.reset')}</button>
     </div>
   </div>
-  {#each THEME_COLORS as c (c.key)}
+  {#each THEME_COLORS.filter((x) => !x.group) as c (c.key)}
+    <div class="field">
+      <div class="grow">
+        <div class="label">{t(`themecolor.${c.key}.label` as Key)}</div>
+        <div class="muted">{t(`themecolor.${c.key}.hint` as Key)}</div>
+      </div>
+      <div class="row">
+        <input type="color" value={app.settings[c.key] || c.fallback}
+          onchange={(e) => saveSetting(c.key, e.currentTarget.value)} />
+        <button class="ghost" disabled={app.settings[c.key] === ''} onclick={() => saveSetting(c.key, '')}>{t('common.reset')}</button>
+      </div>
+    </div>
+  {/each}
+  <h2 class="sub">{t('themes.player_colors')}</h2>
+  <div class="muted">{t('themes.player_hint')}</div>
+  {#each THEME_COLORS.filter((x) => x.group === 'player') as c (c.key)}
     <div class="field">
       <div class="grow">
         <div class="label">{t(`themecolor.${c.key}.label` as Key)}</div>
@@ -102,6 +117,7 @@
   section { margin-bottom: 16px; }
   .field { display: flex; align-items: center; gap: 18px; padding: 8px 0; }
   .label { font-weight: 600; margin-bottom: 2px; }
+  .sub { margin-top: 18px; }
   .hint { font-size: 12px; margin: 6px 0 10px; }
   .list { display: flex; flex-direction: column; gap: 6px; }
   .trow { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }

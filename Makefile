@@ -1,4 +1,4 @@
-.PHONY: linux windows deps test clean help nsis-dir
+.PHONY: linux windows deps test clean help
 
 # Detect the host: "Windows_NT" is set by Windows (make via Git Bash/MSYS/Chocolatey).
 ifeq ($(OS),Windows_NT)
@@ -8,9 +8,10 @@ else
 endif
 
 help:
-	@echo "make linux    - build the Debian package + AppImage  (run on Linux)"
-	@echo "make windows  - build the Windows installer          (native on Windows, cross-compiled on Linux)"
+	@echo "make linux    - build the standalone Linux executable    (run on Linux)"
+	@echo "make windows  - build the standalone Windows executable  (native on Windows, cross-compiled on Linux)"
 	@echo "make test     - run the Rust core tests and frontend checks"
+	@echo "No installers are produced: only the executable (mpv/ffmpeg are not included)."
 
 deps:
 	npm install
@@ -23,50 +24,40 @@ test:
 # Needs: rustup (Rust >= 1.90), node >= 20 and
 #   sudo apt install build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev \
 #        libssl-dev libayatana-appindicator3-dev librsvg2-dev mpv
-# Output: target/release/bundle/{deb,appimage}/
+# Output: target/release/kadence-media
 linux: deps
 ifneq ($(HOST),linux)
 	$(error "make linux" must be run on Linux (use WSL or a Debian machine))
 endif
-	npm run tauri build
+	npm run tauri build -- --no-bundle
+	@echo "Built: target/release/kadence-media"
 
 # -------------------------------------------------------------- Windows
 # Native (on Windows 11): needs MSVC Build Tools (C++ workload), Rust >= 1.90, node >= 20.
-#   Output: target/release/bundle/{nsis,msi}/
+#   Output: target/release/kadence-media.exe
 #
 # Cross-compiled (on Linux, experimental): needs
-#   sudo apt install nsis llvm clang lld
+#   sudo apt install llvm clang lld
 #   cargo install --locked cargo-xwin
 #   rustup target add x86_64-pc-windows-msvc
-#   Output: target/x86_64-pc-windows-msvc/release/bundle/nsis/
-# The installer does not include mpv: put mpv.exe on PATH, next to the app, or set it in Settings.
+#   Output: target/x86_64-pc-windows-msvc/release/kadence-media.exe
+# mpv is not included: put mpv.exe on PATH, next to the app, or set it in Settings.
 windows: deps
 ifeq ($(HOST),windows)
-	npm run tauri build
+	npm run tauri build -- --no-bundle
+	@echo "Built: target/release/kadence-media.exe"
 else
 	@missing=""; \
-	for c in cargo-xwin makensis clang ld.lld llvm-rc; do command -v $$c >/dev/null 2>&1 || missing="$$missing $$c"; done; \
+	for c in cargo-xwin clang ld.lld llvm-rc; do command -v $$c >/dev/null 2>&1 || missing="$$missing $$c"; done; \
 	if [ -n "$$missing" ]; then \
 	  echo "Missing tools:$$missing"; \
-	  echo "Install with:  sudo apt install nsis llvm clang lld   &&   cargo install --locked cargo-xwin"; \
+	  echo "Install with:  sudo apt install llvm clang lld   &&   cargo install --locked cargo-xwin"; \
 	  echo "Then:          rustup target add x86_64-pc-windows-msvc"; \
 	  exit 1; \
 	fi
-	$(MAKE) nsis-dir
-	PATH="$(CURDIR)/target/nsis-bin:$$PATH" npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis
+	npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle
+	@echo "Built: target/x86_64-pc-windows-msvc/release/kadence-media.exe"
 endif
-
-# Debian 12 ships NSIS 3.08, which lacks Include/Win/RestartManager.nsh (needed by Tauri's
-# installer script). Use a private copy of NSIS's data dir with that header added (no sudo).
-NSIS_SRC ?= /usr/share/nsis
-nsis-dir:
-	rm -rf target/nsis-dir && mkdir -p target
-	cp -r $(NSIS_SRC) target/nsis-dir
-	cp packaging/nsis/Include/Win/RestartManager.nsh target/nsis-dir/Include/Win/
-	# Wrapper first in PATH: Tauri calls `makensis`, which then uses the patched data dir.
-	mkdir -p target/nsis-bin
-	printf '#!/bin/sh\nNSISDIR="%s" exec "%s" "$$@"\n' "$(CURDIR)/target/nsis-dir" "$$(command -v makensis)" > target/nsis-bin/makensis
-	chmod +x target/nsis-bin/makensis
 
 clean:
 	cargo clean

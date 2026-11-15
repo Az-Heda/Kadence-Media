@@ -34,6 +34,7 @@ export type Settings = {
   library_view: string; default_folder_id: string; escape_action: string;
   grid_page_size: string; table_page_size: string; col_widths: string; table_columns: string; saved_themes: string;
   bg_color: string; surface_color: string; surface2_color: string; border_color: string; text_color: string; muted_color: string;
+  player_text_color: string; player_icon_color: string; player_button_color: string; player_panel_color: string;
   language: string; date_order: string; date_separator: string; time_format: string; time_seconds: string; date_layout: string;
 };
 

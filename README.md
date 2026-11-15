@@ -64,12 +64,12 @@ Set `VP_ALLOW_WAYLAND=1` to opt out (video will then open in its own mpv window)
 For each, either put the `.exe` on `PATH`, next to `kadence-media.exe` (or in an `mpv/` / `ffmpeg/` subfolder), or set its path in Settings (Playback engine).
 
 ## Run / build
-`make linux` and `make windows` build the installers (see the comments in the `Makefile` for per-OS requirements).
+`make linux` and `make windows` each build one standalone executable, no installer (see the comments in the `Makefile` for per-OS requirements).
 
 ```bash
 npm install
 npm run tauri dev      # development
-npm run tauri build    # installers in target/release/bundle
+npm run tauri build -- --no-bundle   # executable in target/release
 cargo test -p vp-core  # core tests (db, rules, profiles, mpv client, probe)
 cargo test -p kadence-media  # shell tests (player state, screenshot decoding, PiP placement)
 ```

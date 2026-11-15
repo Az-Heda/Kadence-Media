@@ -215,6 +215,8 @@ export const en = {
   'themes.save_hint': 'Saving with an existing name replaces that theme.',
   'themes.delete': 'Delete theme',
   'themes.none': 'No saved themes yet.',
+  'themes.player_colors': 'Video page',
+  'themes.player_hint': 'Colors of the buttons, icons and text shown over the video. They stay readable on any theme.',
   'themes.colors': 'Colors',
   'themes.primary': 'Primary color',
   'themes.primary_hint': 'Accent used for buttons, highlights and the player.',
@@ -232,6 +234,14 @@ export const en = {
   'themecolor.text_color.label': 'Text',
   'themecolor.text_color.hint': 'Main text',
   'themecolor.muted_color.label': 'Secondary text',
+  'themecolor.player_text_color.label': 'Video: text',
+  'themecolor.player_text_color.hint': 'Title, time and text over the video',
+  'themecolor.player_icon_color.label': 'Video: icons',
+  'themecolor.player_icon_color.hint': 'Icons of the video controls',
+  'themecolor.player_button_color.label': 'Video: buttons',
+  'themecolor.player_button_color.hint': 'Background of the buttons over the video',
+  'themecolor.player_panel_color.label': 'Video: menus',
+  'themecolor.player_panel_color.hint': 'Playlist panel and speed menu background',
   'themecolor.muted_color.hint': 'Hints and labels',
 
   // ---- settings

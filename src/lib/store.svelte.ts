@@ -10,7 +10,7 @@ export const app = $state({
   playerView: false,
   /// Picture-in-picture: the window is a small always-on-top player.
   pip: false,
-  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', ffmpeg_path: '', show_hidden: 'false', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '', language: 'system', date_order: 'dmy', date_separator: '/', time_format: '24h', time_seconds: 'true', date_layout: 'time_first' } as Settings,
+  settings: { volume_max: '300', volume: '100', primary_color: DEFAULT_PRIMARY, embed_video: 'true', mpv_path: '', ffmpeg_path: '', show_hidden: 'false', library_view: 'grid', default_folder_id: '', escape_action: 'stop', grid_page_size: '60', table_page_size: '20', col_widths: '', table_columns: '', saved_themes: '', bg_color: '', surface_color: '', surface2_color: '', border_color: '', text_color: '', muted_color: '', player_text_color: '', player_icon_color: '', player_button_color: '', player_panel_color: '', language: 'system', date_order: 'dmy', date_separator: '/', time_format: '24h', time_seconds: 'true', date_layout: 'time_first' } as Settings,
   /// Profiles (each one has its own library) and the one currently loaded.
   profiles: { current: 1, profiles: [] } as ProfilesState,
   folders: [] as Folder[],
@@ -77,13 +77,17 @@ export async function setDefaultFolder(id: number | null) {
 export const volumeMax = () => Math.max(100, Number(app.settings.volume_max) || 300);
 
 /** Customisable theme colors: setting key -> CSS variable and default (from app.css). Labels: `themecolor.<key>.label|hint`. */
-export const THEME_COLORS: { key: keyof Settings; css: string; fallback: string }[] = [
+export const THEME_COLORS: { key: keyof Settings; css: string; fallback: string; group?: 'player' }[] = [
   { key: 'bg_color', css: '--bg', fallback: '#0d0d10' },
   { key: 'surface_color', css: '--surface', fallback: '#16161b' },
   { key: 'surface2_color', css: '--surface-2', fallback: '#1e1e25' },
   { key: 'border_color', css: '--border', fallback: '#2b2b35' },
   { key: 'text_color', css: '--text', fallback: '#ececf1' },
   { key: 'muted_color', css: '--muted', fallback: '#9a9aaa' },
+  { key: 'player_text_color', css: '--player-text', fallback: '#ffffff', group: 'player' },
+  { key: 'player_icon_color', css: '--player-icon', fallback: '#ffffff', group: 'player' },
+  { key: 'player_button_color', css: '--player-button', fallback: '#000000', group: 'player' },
+  { key: 'player_panel_color', css: '--player-panel', fallback: '#101014', group: 'player' },
 ];
 
 /** A named set of colors. Empty strings mean "default". */

@@ -215,6 +215,8 @@ export const it: Dict = {
   'themes.save_hint': 'Salvando con un nome già esistente, quel tema viene sostituito.',
   'themes.delete': 'Elimina tema',
   'themes.none': 'Ancora nessun tema salvato.',
+  'themes.player_colors': 'Pagina video',
+  'themes.player_hint': 'Colori di pulsanti, icone e testo mostrati sopra il video. Restano leggibili con qualsiasi tema.',
   'themes.colors': 'Colori',
   'themes.primary': 'Colore primario',
   'themes.primary_hint': 'Colore di accento usato per pulsanti, evidenziazioni e player.',
@@ -232,6 +234,14 @@ export const it: Dict = {
   'themecolor.text_color.label': 'Testo',
   'themecolor.text_color.hint': 'Testo principale',
   'themecolor.muted_color.label': 'Testo secondario',
+  'themecolor.player_text_color.label': 'Video: testo',
+  'themecolor.player_text_color.hint': 'Titolo, tempo e testo sopra il video',
+  'themecolor.player_icon_color.label': 'Video: icone',
+  'themecolor.player_icon_color.hint': 'Icone dei controlli del video',
+  'themecolor.player_button_color.label': 'Video: pulsanti',
+  'themecolor.player_button_color.hint': 'Sfondo dei pulsanti sopra il video',
+  'themecolor.player_panel_color.label': 'Video: menu',
+  'themecolor.player_panel_color.hint': 'Sfondo del pannello playlist e del menu velocità',
   'themecolor.muted_color.hint': 'Suggerimenti ed etichette',
 
   // ---- settings
