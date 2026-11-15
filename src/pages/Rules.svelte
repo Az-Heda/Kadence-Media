@@ -16,7 +16,12 @@
   let matchInfo = $state<string>('');
   let matchBad = $state(false);
   let applying = $state(false);
-  let headEl = $state<HTMLElement>();
+  let search = $state('');
+  // The rule being edited stays visible even if it no longer matches the search.
+  const visible = $derived.by(() => {
+    const q = search.trim().toLowerCase();
+    return q ? rules.filter((r) => r.name.toLowerCase().includes(q) || r.id === draft?.id) : rules;
+  });
 
   async function load() {
     rules = (await guarded(() => api.listRules())) ?? [];
@@ -32,7 +37,6 @@
   }
   function startEdit(r: Rule) {
     draft = { ...r, tag_ids: [...r.tag_ids], playlist_ids: [...r.playlist_ids] };
-    headEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // A rule named exactly like a tag/playlist selects it (the user can still deselect it).
@@ -110,7 +114,7 @@
   }
 </script>
 
-<div class="head" bind:this={headEl}>
+<div class="head">
   <div class="grow">
     <h1>{t('rules.title')}</h1>
     <div class="muted">{t('rules.intro')}</div>
@@ -122,15 +126,15 @@
   <button class="primary" onclick={startNew}><Plus size={15} /> {t('rules.new')}</button>
 </div>
 
-{#if draft}
-  <form class="card editor" class:invalid={!draft.tag_ids.length && !draft.playlist_ids.length} onsubmit={(e) => { e.preventDefault(); save(); }}>
+{#snippet editor(d: RuleInput & { id: number | null })}
+  <form class="card editor" class:invalid={!d.tag_ids.length && !d.playlist_ids.length} onsubmit={(e) => { e.preventDefault(); save(); }}>
     <div class="row">
-      <input type="text" class="grow" placeholder={t('rules.name_placeholder')} bind:value={draft.name} oninput={autoSelectByName} />
-      <label class="check"><input type="checkbox" bind:checked={draft.enabled} /> {t('common.enabled')}</label>
+      <input type="text" class="grow" placeholder={t('rules.name_placeholder')} bind:value={d.name} oninput={autoSelectByName} />
+      <label class="check"><input type="checkbox" bind:checked={d.enabled} /> {t('common.enabled')}</label>
     </div>
     <div class="row">
-      <input type="text" class="grow mono" placeholder={t('rules.pattern_placeholder')} bind:value={draft.pattern} />
-      <label class="check"><input type="checkbox" bind:checked={draft.case_insensitive} /> {t('rules.ignore_case')}</label>
+      <input type="text" class="grow mono" placeholder={t('rules.pattern_placeholder')} bind:value={d.pattern} />
+      <label class="check"><input type="checkbox" bind:checked={d.case_insensitive} /> {t('rules.ignore_case')}</label>
     </div>
     <div class="hint" class:bad={matchBad}>
       {matchInfo || t('rules.pattern_hint')}
@@ -140,7 +144,7 @@
     <h2>{t('rules.apply_tags')}</h2>
     <div class="chips">
       {#each app.tags as t (t.id)}
-        <button type="button" class="chip" class:active={draft.tag_ids.includes(t.id)}
+        <button type="button" class="chip" class:active={d.tag_ids.includes(t.id)}
           onclick={() => draft && (draft.tag_ids = toggle(draft.tag_ids, t.id))}>
           <span class="dot" style:background={t.color}></span>{t.name}
         </button>
@@ -150,7 +154,7 @@
     <h2>{t('rules.add_to_playlists')}</h2>
     <div class="chips">
       {#each app.playlists as p (p.id)}
-        <button type="button" class="chip" class:active={draft.playlist_ids.includes(p.id)}
+        <button type="button" class="chip" class:active={d.playlist_ids.includes(p.id)}
           onclick={() => draft && (draft.playlist_ids = toggle(draft.playlist_ids, p.id))}>{p.name}</button>
       {:else}<span class="muted">{t('rules.create_playlists_first')}</span>{/each}
     </div>
@@ -160,10 +164,17 @@
       <button type="button" onclick={() => (draft = null)}><X size={15} /> {t('common.cancel')}</button>
     </div>
   </form>
-{/if}
+{/snippet}
+
+<input type="text" class="search" placeholder={t('rules.search')} bind:value={search} />
+
+{#if draft && draft.id == null}{@render editor(draft)}{/if}
 
 <div class="list">
-  {#each rules as r (r.id)}
+  {#each visible as r (r.id)}
+    {#if draft && draft.id === r.id}
+      {@render editor(draft)}
+    {:else}
     <div class="card rule" class:off={!r.enabled} class:invalid={!r.tag_ids.length && !r.playlist_ids.length}>
       <div class="row">
         <input type="checkbox" checked={r.enabled} onchange={(e) => setEnabled(r, e.currentTarget.checked)} title={t('common.enabled')} />
@@ -185,8 +196,9 @@
         {#if !r.tag_ids.length && !r.playlist_ids.length}<span class="muted small">{t('rules.no_selection')}</span>{/if}
       </div>
     </div>
+    {/if}
   {:else}
-    {#if !draft}<div class="card empty">{@html t('rules.empty')}</div>{/if}
+    {#if !draft}<div class="card empty">{@html t(rules.length ? 'rules.no_results' : 'rules.empty')}</div>{/if}
   {/each}
 </div>
 
@@ -197,6 +209,7 @@
 {/if}
 
 <style>
+  .search { width: 100%; max-width: 360px; margin-bottom: 14px; }
   .head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; }
   .editor { margin-bottom: 18px; display: flex; flex-direction: column; gap: 10px; }
   .mono, code, .small :global(code) { font-family: ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace; }
