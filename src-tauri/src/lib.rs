@@ -167,6 +167,11 @@ pub fn run() {
                     }
                     if let Some(overlay) = handle.get_webview_window("overlay") {
                         sync_overlay(&main2, &overlay);
+                        // The UI (and so every keybind) lives in the overlay: when the main window
+                        // takes focus (e.g. after toggling fullscreen) hand it straight over.
+                        if matches!(event, WindowEvent::Focused(true)) {
+                            let _ = overlay.set_focus();
+                        }
                     }
                 }
                 WindowEvent::Destroyed => handle.exit(0),

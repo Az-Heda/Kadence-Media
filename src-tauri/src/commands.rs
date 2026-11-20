@@ -398,7 +398,12 @@ pub fn player_stop(state: State<'_, AppState>) {
 #[tauri::command]
 pub fn set_fullscreen(app: AppHandle, on: bool) -> Res<()> {
     let main = app.get_webview_window("main").ok_or("main window missing")?;
-    main.set_fullscreen(on).map_err(e)
+    main.set_fullscreen(on).map_err(e)?;
+    // Keybinds are handled by the overlay webview; make sure it keeps keyboard focus.
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        let _ = overlay.set_focus();
+    }
+    Ok(())
 }
 
 #[tauri::command]
