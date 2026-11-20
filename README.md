@@ -69,7 +69,7 @@ For each, either put the `.exe` on `PATH`, next to `kadence-media.exe` (or in an
 ```bash
 pnpm install
 pnpm tauri dev      # development
-pnpm tauri build -- --no-bundle   # executable in target/release
+pnpm tauri build --no-bundle   # executable in target/release
 cargo test -p vp-core  # core tests (db, rules, profiles, mpv client, probe)
 cargo test -p kadence-media  # shell tests (player state, screenshot decoding, PiP placement)
 ```

@@ -100,7 +100,7 @@ jobs:
       # `tauri build --no-bundle` compiles the frontend + a release binary (with the
       # frontend embedded) and skips the installer/package step.
       - name: Build executable
-        run: pnpm tauri build -- --no-bundle
+        run: pnpm tauri build --no-bundle
 
       - name: Collect executable
         shell: bash

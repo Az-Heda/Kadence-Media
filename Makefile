@@ -29,7 +29,7 @@ linux: deps
 ifneq ($(HOST),linux)
 	$(error "make linux" must be run on Linux (use WSL or a Debian machine))
 endif
-	pnpm tauri build -- --no-bundle
+	pnpm tauri build --no-bundle
 	@echo "Built: target/release/kadence-media"
 
 # -------------------------------------------------------------- Windows
@@ -44,7 +44,7 @@ endif
 # mpv is not included: put mpv.exe on PATH, next to the app, or set it in Settings.
 windows: deps
 ifeq ($(HOST),windows)
-	pnpm tauri build -- --no-bundle
+	pnpm tauri build --no-bundle
 	@echo "Built: target/release/kadence-media.exe"
 else
 	@missing=""; \
@@ -55,7 +55,7 @@ else
 	  echo "Then:          rustup target add x86_64-pc-windows-msvc"; \
 	  exit 1; \
 	fi
-	pnpm tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle
+	pnpm tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle
 	@echo "Built: target/x86_64-pc-windows-msvc/release/kadence-media.exe"
 endif
 
