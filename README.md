@@ -14,7 +14,9 @@ Tauri 2 (Rust) · Svelte 5 + TypeScript · mpv for playback.
 - **Ratings**: 0.5 to 5 stars (half steps) on cards and in the table.
 - **Watched tracking**: set automatically when playback starts, or toggled manually; "Toggle watched" marks everything matching the current tag/playlist filter at once.
 - **Hide videos** from the right-click menu; an optional "Hidden" tab (Settings) shows them again.
-- **Right-click menu** on any video: play, watched, tags & playlists, hide.
+- **Right-click menu** on any video: play, watched, tags & playlists, rename or move the file, hide.
+- **Rename and move files from the app**: renaming keeps the extension; moving is limited to the library folders (or folders inside them), including across drives. The video keeps its tags, playlists, rating and watched state. A video that is playing must be stopped first, and nothing is ever overwritten.
+- **Statistics page**: totals (videos, watched, length, size, average rating), rating and length distributions, videos added per month, per-folder/tag/playlist breakdowns and top lists (largest, longest, top rated). Hidden videos are not counted.
 
 **Organization**
 - **Tags** (many per video, with colors) and **playlists** (ordered, reorderable by drag and drop, played in sequence) are separate concepts, each with its own page (Playlists, then Tags): a table with name search, client-side pagination, rename, delete, "show in library" and a dialog to create new ones.
@@ -32,6 +34,7 @@ Tauri 2 (Rust) · Svelte 5 + TypeScript · mpv for playback.
 - **Themes page**: primary color (default gold) plus background, cards, buttons, borders and text colors; save and apply named themes.
 - **Languages**: English and Italian (default follows the system), plus date order, separator, 12/24-hour time, seconds and date/time order for every date shown (Settings → Language & formats).
 - **Profiles**: a switcher at the bottom of the sidebar. Each profile has its own library (folders, tags, playlists, rules, settings) in a separate file; an optional 4–8 digit PIN (not available on the Default profile) is asked when switching to it, with a delay after repeated wrong attempts. The PIN only locks the profile inside the app, it does not encrypt the files. The app always starts on the Default profile.
+- **Export / import** (Settings): save tags, playlists and automatic rules to a JSON file and load them elsewhere (another profile or computer). Only definitions travel: names, colors and rule patterns, never videos, paths or which videos belong to what. Importing is additive and idempotent (existing items are skipped; rules are not applied to existing videos automatically).
 - **Settings**: language and formats, maximum volume, library view, page sizes, hidden videos tab, table columns, Esc behavior, embed toggle, mpv and ffmpeg paths, database location.
 
 ## Architecture

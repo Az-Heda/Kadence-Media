@@ -38,6 +38,23 @@ export type Settings = {
   language: string; date_order: string; date_separator: string; time_format: string; time_seconds: string; date_layout: string;
 };
 
+export interface GroupStat { id: number; name: string; color: string | null; videos: number; watched: number; size: number; duration: number }
+export interface VideoBrief { id: number; title: string; size: number; duration: number | null; rating: number }
+export interface Stats {
+  videos: number; hidden: number; watched: number; total_size: number; total_duration: number; watched_duration: number;
+  unindexed: number; rated: number; avg_rating: number;
+  /** Videos per rating, 0.5 to 5 stars in half steps (10 entries). */
+  rating_distribution: number[];
+  duration_buckets: { key: string; count: number }[];
+  folders: GroupStat[]; tags: GroupStat[]; playlists: GroupStat[];
+  largest: VideoBrief[]; longest: VideoBrief[]; top_rated: VideoBrief[];
+  added_by_month: { month: string; count: number }[];
+}
+export interface ImportReport {
+  tags_added: number; tags_skipped: number; playlists_added: number; playlists_skipped: number;
+  rules_added: number; rules_skipped: number; rules_invalid: string[];
+}
+
 export const api = {
   listFolders: () => invoke<Folder[]>('list_folders'),
   addFolder: (path: string) => invoke<Folder>('add_folder', { path }),
@@ -87,6 +104,13 @@ export const api = {
     invoke<void>('remove_from_playlist', { playlistId, videoId }),
   reorderPlaylist: (playlistId: number, orderedIds: number[]) =>
     invoke<void>('reorder_playlist', { playlistId, orderedIds }),
+
+  libraryStats: () => invoke<Stats>('library_stats'),
+  exportData: (path: string, tags: boolean, playlists: boolean, rules: boolean) =>
+    invoke<void>('export_data', { path, tags, playlists, rules }),
+  importData: (path: string) => invoke<ImportReport>('import_data', { path }),
+  renameVideo: (id: number, name: string) => invoke<Video>('rename_video', { id, name }),
+  moveVideo: (id: number, dir: string) => invoke<Video>('move_video', { id, dir }),
 
   getSettings: () => invoke<Settings>('get_settings'),
   setSetting: (key: keyof Settings, value: string) => invoke<void>('set_setting', { key, value }),

@@ -1,9 +1,12 @@
 <script lang="ts">
+  import { open, save } from '@tauri-apps/plugin-dialog';
   import { api } from '../lib/api';
-  import { app, guarded, saveSetting, toast, volumeMax } from '../lib/store.svelte';
+  import { app, guarded, refreshAll, saveSetting, toast, volumeMax } from '../lib/store.svelte';
   import LayoutGrid from '@lucide/svelte/icons/layout-grid';
   import Table2 from '@lucide/svelte/icons/table-2';
   import GripVertical from '@lucide/svelte/icons/grip-vertical';
+  import Upload from '@lucide/svelte/icons/upload';
+  import Download from '@lucide/svelte/icons/download';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
   import { colName, resolveColumns } from '../lib/columns';
   import { DATE_SEPARATORS, LANGUAGES, fmtDateTime, t, type Key } from '../lib/i18n.svelte';
@@ -18,6 +21,28 @@
   let ffmpegPath = $state(app.settings.ffmpeg_path);
   let dbPath = $state('');
   guarded(async () => (dbPath = await api.databasePath()));
+
+  // Export / import of tag, playlist and rule definitions (never videos).
+  let xTags = $state(true), xPlaylists = $state(true), xRules = $state(true);
+  const JSON_FILTER = [{ name: 'JSON', extensions: ['json'] }];
+  async function exportData() {
+    if (!(xTags || xPlaylists || xRules)) return toast(t('settings.export_pick'), true);
+    const path = await save({ defaultPath: 'kadence-media-export.json', filters: JSON_FILTER });
+    if (!path) return;
+    const ok = await guarded(async () => (await api.exportData(path, xTags, xPlaylists, xRules), true));
+    if (ok) toast(t('settings.export_done', { path }));
+  }
+  async function importData() {
+    const path = await open({ multiple: false, filters: JSON_FILTER });
+    if (typeof path !== 'string') return;
+    const r = await guarded(() => api.importData(path));
+    if (!r) return;
+    await refreshAll();
+    const skipped = r.tags_skipped + r.playlists_skipped + r.rules_skipped;
+    let msg = t('settings.import_done', { tags: r.tags_added, playlists: r.playlists_added, rules: r.rules_added, skipped });
+    if (r.rules_invalid.length) msg += '\n' + t('settings.import_invalid', { names: r.rules_invalid.join(', ') });
+    toast(msg, r.rules_invalid.length > 0);
+  }
 
   let gridSize = $state(Number(app.settings.grid_page_size) || 60);
   let tableSize = $state(Number(app.settings.table_page_size) || 20);
@@ -249,6 +274,20 @@
 </section>
 
 <section class="card">
+  <h2>{t('settings.transfer')}</h2>
+  <div class="muted">{t('settings.transfer_hint')}</div>
+  <div class="checks">
+    <label><input type="checkbox" bind:checked={xTags} /> {t('settings.transfer_tags')}</label>
+    <label><input type="checkbox" bind:checked={xPlaylists} /> {t('settings.transfer_playlists')}</label>
+    <label><input type="checkbox" bind:checked={xRules} /> {t('settings.transfer_rules')}</label>
+  </div>
+  <div class="row">
+    <button onclick={exportData}><Upload size={15} /> {t('settings.export')}</button>
+    <button onclick={importData}><Download size={15} /> {t('settings.import')}</button>
+  </div>
+</section>
+
+<section class="card">
   <h2>{t('settings.database')}</h2>
   <div class="field">
     <div class="grow">
@@ -271,6 +310,8 @@
   .colrow.drop-before { box-shadow: inset 0 3px 0 var(--primary); }
   .colrow.drop-after { box-shadow: inset 0 -3px 0 var(--primary); }
   .off { color: var(--muted); text-decoration: line-through; }
+  .checks { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+  .checks label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .intro { margin-bottom: 18px; }
   section { margin-bottom: 16px; }
   .field { display: flex; align-items: center; gap: 18px; padding: 8px 0; }

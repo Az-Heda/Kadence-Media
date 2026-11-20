@@ -152,3 +152,68 @@ pub struct RuleInput {
 fn yes() -> bool {
     true
 }
+
+// ------------------------------------------------------------- statistics
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Bucket {
+    pub key: String,
+    pub count: i64,
+}
+
+/// Totals for one folder, tag or playlist (hidden videos excluded).
+#[derive(Debug, Clone, Serialize)]
+pub struct GroupStat {
+    pub id: i64,
+    pub name: String,
+    /// Tags only.
+    pub color: Option<String>,
+    pub videos: i64,
+    pub watched: i64,
+    pub size: i64,
+    pub duration: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VideoBrief {
+    pub id: i64,
+    pub title: String,
+    pub size: i64,
+    pub duration: Option<f64>,
+    pub rating: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MonthCount {
+    /// "YYYY-MM"
+    pub month: String,
+    pub count: i64,
+}
+
+/// Library statistics. Everything except `hidden` ignores hidden videos.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct Stats {
+    pub videos: i64,
+    pub hidden: i64,
+    pub watched: i64,
+    pub total_size: i64,
+    /// Seconds, over videos whose duration is known.
+    pub total_duration: f64,
+    pub watched_duration: f64,
+    /// Videos whose duration has not been read yet.
+    pub unindexed: i64,
+    pub rated: i64,
+    /// Average over rated videos (0 when none).
+    pub avg_rating: f64,
+    /// Videos per rating, 0.5 to 5 stars in half steps (10 entries).
+    pub rating_distribution: Vec<i64>,
+    pub duration_buckets: Vec<Bucket>,
+    pub folders: Vec<GroupStat>,
+    pub tags: Vec<GroupStat>,
+    pub playlists: Vec<GroupStat>,
+    pub largest: Vec<VideoBrief>,
+    pub longest: Vec<VideoBrief>,
+    pub top_rated: Vec<VideoBrief>,
+    /// Videos first seen per month, last 12 months, oldest first.
+    pub added_by_month: Vec<MonthCount>,
+}

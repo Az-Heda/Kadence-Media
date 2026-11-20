@@ -1,7 +1,7 @@
 import { applyI18nSettings, t } from './i18n.svelte';
 import { api, errMsg, type SortBy, type VideoFilter, type Folder, type Playlist, type ProfilesState, type PlayerState, type Settings, type Tag, type Video } from './api';
 
-export type Page = 'library' | 'folders' | 'playlists' | 'tags' | 'rules' | 'themes' | 'settings';
+export type Page = 'library' | 'folders' | 'playlists' | 'tags' | 'rules' | 'stats' | 'themes' | 'settings';
 
 export const DEFAULT_PRIMARY = '#d4a017';
 

@@ -505,3 +505,88 @@ mod tests {
         assert_eq!(pip_corner((-1920, -200), (1920, 1080), 1.0), (-480 - 24, -200 + 1080 - 270 - 72));
     }
 }
+
+// ------------------------------------------------------------- statistics
+
+#[tauri::command]
+pub fn library_stats(state: State<'_, AppState>) -> Res<vp_core::Stats> {
+    lib!(state).stats().map_err(e)
+}
+
+// ------------------------------------------------------- export / import
+
+/// Write tag / playlist / rule definitions (never videos) to a JSON file.
+#[tauri::command]
+pub fn export_data(state: State<'_, AppState>, path: String, tags: bool, playlists: bool, rules: bool) -> Res<()> {
+    if !(tags || playlists || rules) {
+        return Err("nothing selected to export".into());
+    }
+    let json = lib!(state).export_data(tags, playlists, rules).map_err(e)?.to_json().map_err(e)?;
+    std::fs::write(&path, json).map_err(|err| format!("cannot write '{path}': {err}"))
+}
+
+/// Merge an export file into the current library (existing items are skipped).
+#[tauri::command]
+pub fn import_data(state: State<'_, AppState>, path: String) -> Res<vp_core::ImportReport> {
+    // An export is a few KB; refuse anything absurd instead of reading it into memory.
+    let size = std::fs::metadata(&path).map_err(|err| format!("cannot read '{path}': {err}"))?.len();
+    if size > 10 * 1024 * 1024 {
+        return Err("that file is too large to be an export".into());
+    }
+    let json = std::fs::read_to_string(&path).map_err(|err| format!("cannot read '{path}': {err}"))?;
+    let file = vp_core::ExportFile::parse(&json).map_err(e)?;
+    lib!(state).import_data(&file).map_err(e)
+}
+
+// ------------------------------------------------------- rename / move
+
+/// Windows locks a playing file, and elsewhere mpv would keep the old path: stop it first.
+fn ensure_not_playing(state: &AppState, id: i64) -> Res<()> {
+    let p = state.player.snapshot();
+    if p.video_id == Some(id) && (p.loaded || !p.idle) {
+        return Err("this video is playing: stop it first".into());
+    }
+    Ok(())
+}
+
+/// Run a planned rename/move. Same-drive changes are instant and happen under the library lock
+/// (so a rescan cannot see the file half-way); copying across drives happens without it.
+async fn relocate(app: &AppHandle, id: i64, plan: impl FnOnce(&Library) -> vp_core::Result<vp_core::fileops::MovePlan>) -> Res<Video> {
+    let state = app.state::<AppState>();
+    ensure_not_playing(&state, id)?;
+    let copy_plan = {
+        let lib = lib!(state);
+        let plan = plan(&lib).map_err(e)?;
+        if lib.apply_plan(&plan).map_err(e)? {
+            None
+        } else {
+            Some(plan)
+        }
+    };
+    if let Some(plan) = copy_plan {
+        let p = plan.clone();
+        tauri::async_runtime::spawn_blocking(move || vp_core::fileops::copy_across(&p))
+            .await
+            .map_err(e)?
+            .map_err(e)?;
+        if let Err(err) = lib!(state).commit_plan(&plan) {
+            // The row could not follow: put the file back rather than orphan it.
+            let _ = std::fs::copy(&plan.to, &plan.from).and_then(|_| std::fs::remove_file(&plan.to));
+            return Err(e(err));
+        }
+    }
+    let video = lib!(state).get_video(id).map_err(e);
+    video
+}
+
+/// Rename a video's file (`name` is the new name without its extension).
+#[tauri::command]
+pub async fn rename_video(app: AppHandle, id: i64, name: String) -> Res<Video> {
+    relocate(&app, id, |lib| lib.plan_rename(id, &name)).await
+}
+
+/// Move a video's file into a library folder (or a folder inside one).
+#[tauri::command]
+pub async fn move_video(app: AppHandle, id: i64, dir: String) -> Res<Video> {
+    relocate(&app, id, |lib| lib.plan_move(id, &dir)).await
+}

@@ -11,6 +11,8 @@
   import SettingsPage from './pages/Settings.svelte';
   import Player from './pages/Player.svelte';
   import Rules from './pages/Rules.svelte';
+  import Stats from './pages/Stats.svelte';
+  import ChartColumn from '@lucide/svelte/icons/chart-column';
   import MiniPlayer from './components/MiniPlayer.svelte';
   import ProfilesDialog from './components/ProfilesDialog.svelte';
   import UserRound from '@lucide/svelte/icons/user-round';
@@ -32,6 +34,7 @@
     { id: 'playlists', label: 'nav.playlists', icon: ListVideo },
     { id: 'tags', label: 'nav.tags', icon: Tags },
     { id: 'rules', label: 'nav.rules', icon: WandSparkles },
+    { id: 'stats', label: 'nav.stats', icon: ChartColumn },
   ];
   // Without folders there is nothing to show: hide the Library and land on Folders.
   const pages = $derived(allPages.filter((p) => p.id !== 'library' || app.folders.length > 0));
@@ -139,6 +142,7 @@
           {:else if app.page === 'playlists'}<Collection kind="playlist" />
           {:else if app.page === 'tags'}<Collection kind="tag" />
           {:else if app.page === 'rules'}<Rules />
+          {:else if app.page === 'stats'}<Stats />
           {:else if app.page === 'themes'}<Themes />
           {:else}<SettingsPage />{/if}
         </main>
@@ -173,4 +177,5 @@
     background: var(--surface-2); border: 1px solid var(--primary); border-radius: 10px; box-shadow: 0 8px 30px #0008;
   }
   .toast.error { border-color: var(--danger); }
+  .toast { white-space: pre-line; }
 </style>

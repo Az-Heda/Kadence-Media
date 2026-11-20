@@ -786,7 +786,7 @@ pub fn scan_folder_files_pub(path: &str) -> Result<Vec<ScannedFile>> {
 }
 
 /// Windows `canonicalize` yields `\\?\C:\...`; strip it for nicer display/mpv usage.
-fn strip_verbatim(p: &str) -> String {
+pub(crate) fn strip_verbatim(p: &str) -> String {
     p.strip_prefix(r"\\?\").unwrap_or(p).to_string()
 }
 

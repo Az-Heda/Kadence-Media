@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { open } from '@tauri-apps/plugin-dialog';
   import { api, type Video } from '../lib/api';
   import { app, defaultFolderId, guarded, libraryFilter, loadVideos, moveInPlaylist, pageSize, playQueue, refreshAll, removeFromPlaylist, setHidden, setPage, toast, toggleWatched, toggleWatchedAll } from '../lib/store.svelte';
   import type { PlaylistCtx } from '../lib/dnd';
@@ -20,17 +21,43 @@
   import Tag from '@lucide/svelte/icons/tag';
   import VideoCard from '../components/VideoCard.svelte';
   import ManageVideo from '../components/ManageVideo.svelte';
+  import RenameVideo from '../components/RenameVideo.svelte';
+  import Pencil from '@lucide/svelte/icons/pencil';
+  import FolderInput from '@lucide/svelte/icons/folder-input';
 
   let managingId = $state<number | null>(null);
   const managing = $derived(app.videos.find((v) => v.id === managingId));
   let scanning = $state(false);
+
+  // Rename / move the file itself. The row keeps its id, so tags, playlists and rating stay.
+  let renaming = $state<Video | null>(null);
+  /** A renamed/moved video is also held by the playback queue: keep that copy current. */
+  function syncQueue(v: Video) {
+    const i = app.queueVideos.findIndex((x) => x.id === v.id);
+    if (i >= 0) app.queueVideos[i] = v;
+  }
+  async function renamed(v: Video) {
+    renaming = null;
+    syncQueue(v);
+    toast(t('library.rename_done', { name: v.path.split(/[\\/]/).pop() ?? v.title }));
+    await refreshAll();
+  }
+  async function moveFile(v: Video) {
+    const dir = await open({ directory: true, multiple: false, title: t('library.move_choose') });
+    if (typeof dir !== 'string') return;
+    const moved = await guarded(() => api.moveVideo(v.id, dir));
+    if (!moved) return;
+    syncQueue(moved);
+    toast(t('library.move_done', { path: moved.path }));
+    await refreshAll();
+  }
 
   // Right-click menu (shared by grid and table).
   let menu = $state<{ x: number; y: number; video: Video } | null>(null);
   function openMenu(e: MouseEvent, video: Video) {
     e.preventDefault();
     // Keep the menu inside the window.
-    menu = { x: Math.min(e.clientX, window.innerWidth - 220), y: Math.min(e.clientY, window.innerHeight - 190), video };
+    menu = { x: Math.min(e.clientX, window.innerWidth - 220), y: Math.min(e.clientY, window.innerHeight - 270), video };
   }
   const closeMenu = () => (menu = null);
   // Run the action before closing: the items read `menu.video`, which is gone once the menu closes.
@@ -236,12 +263,17 @@
       </button>
       <button class="ghost" role="menuitem" onclick={() => menuDo(() => (managingId = v.id))}><Tag size={14} /> {t('common.tags_playlists')}</button>
       <hr />
+      <button class="ghost" role="menuitem" onclick={() => menuDo(() => (renaming = v))}><Pencil size={14} /> {t('library.rename')}</button>
+      <button class="ghost" role="menuitem" onclick={() => menuDo(() => moveFile(v))}><FolderInput size={14} /> {t('library.move')}</button>
+      <hr />
       <button class="ghost" role="menuitem" onclick={() => menuDo(() => setHidden(v, !v.hidden))}>
         {#if v.hidden}<Eye size={14} /> {t('library.unhide')}{:else}<EyeOff size={14} /> {t('library.hide')}{/if}
       </button>
     </div>
   </div>
 {/if}
+
+{#if renaming}<RenameVideo video={renaming} ondone={renamed} onclose={() => (renaming = null)} />{/if}
 
 {#if managing}<ManageVideo video={managing} onclose={() => (managingId = null)} />{/if}
 

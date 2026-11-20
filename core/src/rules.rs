@@ -13,7 +13,7 @@ pub(crate) struct CompiledRule {
     playlist_ids: Vec<i64>,
 }
 
-fn compile(pattern: &str, case_insensitive: bool) -> Result<Regex> {
+pub(crate) fn compile(pattern: &str, case_insensitive: bool) -> Result<Regex> {
     if pattern.is_empty() {
         return Err(Error::Msg("the pattern cannot be empty".into()));
     }
