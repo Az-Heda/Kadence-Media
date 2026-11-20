@@ -178,7 +178,7 @@
 <style>
   .head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
   .empty { text-align: center; padding: 40px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
   .tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .label { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
   .big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
