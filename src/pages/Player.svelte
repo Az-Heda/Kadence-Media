@@ -170,6 +170,9 @@
         </div>
       {/if}
     </div>
+    {#if app.queueTitle !== null}
+      <button class:on={panelOpen} onclick={() => (panelOpen = !panelOpen)} title={t('player.playlist', { title: app.queueTitle ?? '' })}><ListVideo size={16} /></button>
+    {/if}
   </div>
   {/if}
 
@@ -213,6 +216,7 @@
       {/if}
       <span class="time">{fmtTime(shownPos)} / {fmtTime(app.player.duration)}</span>
       <span class="grow"></span>
+      <button class="ghost" onclick={takeScreenshot} title={t('player.screenshot')}><Camera size={18} /></button>
       <button class="ghost" onclick={() => guarded(() => api.setMute(!app.player.muted))} title={t('player.mute')}>
         {#if app.player.muted || app.player.volume === 0}<VolumeX size={18} />{:else if app.player.volume > 100}<Volume2 size={18} />{:else}<Volume1 size={18} />{/if}
       </button>
@@ -221,12 +225,6 @@
           oninput={(e) => setVolume(Number(e.currentTarget.value))} />
         <span class="volnum" class:boost={app.player.volume > 100}>{Math.round(app.player.volume)}%</span>
       {/if}
-      {#if app.queueTitle !== null && !app.pip}
-        <button class="ghost" class:on={panelOpen} onclick={() => (panelOpen = !panelOpen)} title={t('player.playlist', { title: app.queueTitle ?? '' })}>
-          <ListVideo size={18} />
-        </button>
-      {/if}
-      <button class="ghost" onclick={takeScreenshot} title={t('player.screenshot')}><Camera size={18} /></button>
       {#if !app.pip}
         <button class="ghost" onclick={() => setPip(true)} title={t('player.pip')}><PictureInPicture2 size={18} /></button>
         <button class="ghost" onclick={() => setFullscreen(!fullscreen)} title={t('player.fullscreen')}>{#if fullscreen}<Minimize size={18} />{:else}<Maximize size={18} />{/if}</button>
