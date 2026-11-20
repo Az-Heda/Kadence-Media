@@ -60,17 +60,23 @@ export async function guarded<T>(fn: () => Promise<T>): Promise<T | undefined> {
   }
 }
 
-/** The folder marked as default in Folders (null = all folders). */
-export const defaultFolderId = (): number | null => Number(app.settings.default_folder_id) || null;
+const markedDefaultId = (): number | null => Number(app.settings.default_folder_id) || null;
+
+/** The folder the library filters on by default: the one starred in Folders, unless it is empty (then null = all folders).
+ *  Needs `app.folders` to be loaded to know whether the folder is empty. */
+export const defaultFolderId = (): number | null => {
+  const id = markedDefaultId();
+  return id != null && (app.folders.find((f) => f.id === id)?.video_count ?? 0) > 0 ? id : null;
+};
 
 export async function setDefaultFolder(id: number | null) {
   await guarded(async () => {
-    const previous = defaultFolderId();
+    const previous = markedDefaultId();
     await api.setDefaultFolder(id);
     app.settings.default_folder_id = id == null ? '' : String(id);
-    // Move the library filter along if it was showing the old default.
-    if (app.filter.folder_id === previous) app.filter.folder_id = id;
     app.folders = await api.listFolders();
+    // Move the library filter along if it was showing the old default (an empty folder is never applied).
+    if (app.filter.folder_id === previous) app.filter.folder_id = defaultFolderId();
   });
 }
 
@@ -218,6 +224,7 @@ export async function switchProfile(id: number, pin: string | null): Promise<str
   app.paging.page = 0;
   await guarded(async () => {
     await loadSettings();
+    app.folders = await api.listFolders(); // needed to tell whether the default folder is empty
     app.filter.folder_id = defaultFolderId();
     app.player = await api.playerState();
     app.indexing = await api.indexingStatus();

@@ -60,6 +60,7 @@
     guarded(async () => {
       await loadSettings();
       await loadProfiles();
+      app.folders = await api.listFolders(); // needed to tell whether the default folder is empty
       app.filter.folder_id = defaultFolderId(); // default folder is applied before the first load
       await refreshAll();
       loaded = true;
