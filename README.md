@@ -67,9 +67,9 @@ For each, either put the `.exe` on `PATH`, next to `kadence-media.exe` (or in an
 `make linux` and `make windows` each build one standalone executable, no installer (see the comments in the `Makefile` for per-OS requirements).
 
 ```bash
-npm install
-npm run tauri dev      # development
-npm run tauri build -- --no-bundle   # executable in target/release
+pnpm install
+pnpm tauri dev      # development
+pnpm tauri build -- --no-bundle   # executable in target/release
 cargo test -p vp-core  # core tests (db, rules, profiles, mpv client, probe)
 cargo test -p kadence-media  # shell tests (player state, screenshot decoding, PiP placement)
 ```
